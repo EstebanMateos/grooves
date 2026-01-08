@@ -1,4 +1,4 @@
-const CACHE_NAME = "grooves-static-v1";
+const CACHE_NAME = "grooves-static-v2";
 const BASE_URL = self.registration.scope;
 const CORE_ASSETS = [
   BASE_URL,
