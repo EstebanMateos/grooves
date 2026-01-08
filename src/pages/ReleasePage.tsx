@@ -371,16 +371,8 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                     <div style={{ fontSize: 18, opacity: 0.85, marginTop: 6 }}>{artist}</div>
 
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                        {inCollection ? (
-                            <span style={{ fontSize: 13, padding: "3px 8px", background: "#d1fae5", borderRadius: 4 }}>
-                                In collection
-                            </span>
-                        ) : null}
-                        {!inCollection && inWishlist ? (
-                            <span style={{ fontSize: 13, padding: "3px 8px", background: "#e0e7ff", borderRadius: 4 }}>
-                                In wishlist
-                            </span>
-                        ) : null}
+                        {inCollection ? <span className="pill pillCollection">In collection</span> : null}
+                        {!inCollection && inWishlist ? <span className="pill pillWishlist">In wishlist</span> : null}
                     </div>
 
                     <div style={{ marginTop: 10, opacity: 0.8 }}>

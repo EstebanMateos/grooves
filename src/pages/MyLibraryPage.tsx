@@ -31,6 +31,13 @@ type UserRecordRow = {
 
 type FilterType = "collection" | "wishlist" | "all";
 
+type CachedLibrary = {
+    updated_at: string;
+    items: UserRecordRow[];
+};
+
+const LIBRARY_CACHE_PREFIX = "grooves:library_cache:";
+
 export default function MyLibraryPage() {
     const library = useUserLibraryIndex();
 
@@ -41,6 +48,34 @@ export default function MyLibraryPage() {
     const [status, setStatus] = useState<string>("");
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
+
+    function readCache(userId: string): CachedLibrary | null {
+        try {
+            const raw = window.localStorage.getItem(`${LIBRARY_CACHE_PREFIX}${userId}`);
+            if (!raw) {
+                return null;
+            }
+            const parsed = JSON.parse(raw) as CachedLibrary;
+            if (!parsed || !Array.isArray(parsed.items)) {
+                return null;
+            }
+            return parsed;
+        } catch {
+            return null;
+        }
+    }
+
+    function writeCache(userId: string, nextItems: UserRecordRow[]) {
+        try {
+            const payload: CachedLibrary = {
+                updated_at: new Date().toISOString(),
+                items: nextItems
+            };
+            window.localStorage.setItem(`${LIBRARY_CACHE_PREFIX}${userId}`, JSON.stringify(payload));
+        } catch {
+            return;
+        }
+    }
 
     async function load() {
         setLoading(true);
@@ -57,16 +92,12 @@ export default function MyLibraryPage() {
                 return;
             }
 
-            let q = supabase
+            const q = supabase
                 .from("user_records")
                 .select("id,list_type,record_id")
                 .eq("user_id", session.user.id)
                 .order("created_at", { ascending: false })
                 .limit(400);
-
-            if (filter !== "all") {
-                q = q.eq("list_type", filter);
-            }
 
             const { data: urData, error: urError } = await q;
 
@@ -104,7 +135,19 @@ export default function MyLibraryPage() {
             }));
 
             setItems(merged);
+            writeCache(session.user.id, merged);
         } catch (e) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const session = sessionData.session;
+            if (session) {
+                const cached = readCache(session.user.id);
+                if (cached?.items?.length) {
+                    setItems(cached.items);
+                    const when = new Date(cached.updated_at).toLocaleString();
+                    setStatus(`Mode hors-ligne — dernière mise à jour ${when}.`);
+                    return;
+                }
+            }
             setError(String(e));
         } finally {
             setLoading(false);
@@ -113,7 +156,7 @@ export default function MyLibraryPage() {
 
     useEffect(() => {
         load();
-    }, [filter]);
+    }, []);
 
     async function removeItem(userRecord: UserRecordRow) {
         setError("");
@@ -150,7 +193,13 @@ export default function MyLibraryPage() {
                 throw delError;
             }
 
-            setItems((prev) => prev.filter((x) => x.id !== userRecord.id));
+            setItems((prev) => {
+                const next = prev.filter((x) => x.id !== userRecord.id);
+                if (session) {
+                    writeCache(session.user.id, next);
+                }
+                return next;
+            });
             await library.reload();
 
             setStatus(userRecord.list_type === "collection" ? "Removed from collection." : "Removed from wishlist.");
@@ -162,12 +211,17 @@ export default function MyLibraryPage() {
     }
 
     const filteredItems = useMemo(() => {
-        const needle = searchText.trim().toLowerCase();
-        if (!needle) {
-            return items;
+        let out = items;
+        if (filter !== "all") {
+            out = out.filter((ur) => ur.list_type === filter);
         }
 
-        return items.filter((ur) => {
+        const needle = searchText.trim().toLowerCase();
+        if (!needle) {
+            return out;
+        }
+
+        return out.filter((ur) => {
             const r = ur.record;
             if (!r) {
                 return false;
