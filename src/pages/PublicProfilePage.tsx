@@ -102,8 +102,8 @@ export default function PublicProfilePage() {
                 <div style={{ marginBottom: 12 }}>
                     <BackButton className="btn btnGhost" />
                 </div>
-                <h1>Profile not found</h1>
-                <div style={{ opacity: 0.8, marginTop: 8 }}>No user exists with username: {username}</div>
+                <h1>Profil introuvable</h1>
+                <div style={{ opacity: 0.8, marginTop: 8 }}>Aucun utilisateur avec le pseudo : {username}</div>
             </div>
         );
     }
@@ -114,9 +114,9 @@ export default function PublicProfilePage() {
                 <div style={{ marginBottom: 12 }}>
                     <BackButton className="btn btnGhost" />
                 </div>
-                <h1>This profile is private</h1>
+                <h1>Ce profil est privé</h1>
                 <div style={{ opacity: 0.8, marginTop: 8 }}>
-                    This user exists, but they did not enable public sharing.
+                    Cet utilisateur existe, mais il n’a pas activé le partage public.
                 </div>
             </div>
         );
@@ -128,11 +128,11 @@ export default function PublicProfilePage() {
                 <BackButton className="btn btnGhost" />
             </div>
 
-            <h1>Library: {username}</h1>
+            <h1>Bibliothèque : {username}</h1>
 
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <button onClick={() => setFilter("all")} disabled={filter === "all"}>
-                    All
+                    Tout
                 </button>
                 <button onClick={() => setFilter("collection")} disabled={filter === "collection"}>
                     Collection
@@ -146,17 +146,17 @@ export default function PublicProfilePage() {
                 <input
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    placeholder="Filter by artist or title"
+                    placeholder="Filtrer par artiste ou titre"
                     style={{ minWidth: 240 }}
                 />
             </div>
 
-            {loading ? <div style={{ marginTop: 12 }}>Loading…</div> : null}
+            {loading ? <div style={{ marginTop: 12 }}>Chargement…</div> : null}
             {error ? <div style={{ marginTop: 12, color: "red" }}>{error}</div> : null}
 
             {!loading && !error && rows.length === 0 ? (
                 <div style={{ marginTop: 12, opacity: 0.8 }}>
-                    No public items. This profile may have no entries yet, or sharing is enabled but empty.
+                    Aucun élément public. Ce profil peut être vide ou le partage est activé mais sans contenu.
                 </div>
             ) : null}
 
@@ -209,7 +209,7 @@ export default function PublicProfilePage() {
                             </div>
 
                             <div style={{ marginTop: 10 }}>
-                                <Link to={`/release/${r.discogs_release_id}`}>Open release</Link>
+                                <Link to={`/release/${r.discogs_release_id}`}>Ouvrir</Link>
                             </div>
                         </div>
                     </div>

@@ -5,7 +5,7 @@ type Props = {
     className?: string;
 };
 
-export default function BackButton({ label = "← Back", className }: Props) {
+export default function BackButton({ label = "← Retour", className }: Props) {
     const navigate = useNavigate();
 
     function handleBack() {

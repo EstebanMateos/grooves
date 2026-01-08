@@ -139,7 +139,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             .single();
 
         if (recordError || !recordRow?.id) {
-            throw recordError ?? new Error("Failed to save record");
+            throw recordError ?? new Error("Impossible d'enregistrer le disque");
         }
 
         return recordRow.id as string;
@@ -163,12 +163,12 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             const inWishlistNow = library.wishlist_ids.has(release.id);
 
             if (listType === "collection" && inCollectionNow) {
-                setActionStatus("Already in collection.");
+                setActionStatus("Déjà dans la collection.");
                 return;
             }
 
             if (listType === "wishlist" && (inWishlistNow || inCollectionNow)) {
-                setActionStatus(inCollectionNow ? "Already in collection." : "Already in wishlist.");
+                setActionStatus(inCollectionNow ? "Déjà dans la collection." : "Déjà dans la wishlist.");
                 return;
             }
 
@@ -219,7 +219,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             }
 
             await library.reload();
-            setActionStatus(listType === "wishlist" ? "Added to wishlist." : "Added to collection.");
+            setActionStatus(listType === "wishlist" ? "Ajouté à la wishlist." : "Ajouté à la collection.");
         } catch (e) {
             setActionStatus(String(e));
         } finally {
@@ -246,7 +246,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             const recordId = await getRecordIdByDiscogsReleaseId(release.id);
             if (!recordId) {
                 await library.reload();
-                setActionStatus("Removed.");
+                setActionStatus("Retiré.");
                 return;
             }
 
@@ -287,7 +287,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             }
 
             await library.reload();
-            setActionStatus(listType === "wishlist" ? "Removed from wishlist." : "Removed from collection.");
+            setActionStatus(listType === "wishlist" ? "Retiré de la wishlist." : "Retiré de la collection.");
         } catch (e) {
             setActionStatus(String(e));
         } finally {
@@ -310,7 +310,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             }
 
             if (library.collection_ids.has(release.id)) {
-                setActionStatus("Already in collection.");
+                setActionStatus("Déjà dans la collection.");
                 return;
             }
 
@@ -321,7 +321,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     }
 
     if (loading) {
-        return <div>Loading…</div>;
+        return <div>Chargement…</div>;
     }
 
     if (error) {
@@ -337,7 +337,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         return (
             <div>
                 <BackButton className="btn btnGhost" />
-                <div>No data</div>
+                <div>Aucune donnée</div>
             </div>
         );
     }
@@ -371,8 +371,8 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                     <div style={{ fontSize: 18, opacity: 0.85, marginTop: 6 }}>{artist}</div>
 
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                        {inCollection ? <span className="pill pillCollection">In collection</span> : null}
-                        {!inCollection && inWishlist ? <span className="pill pillWishlist">In wishlist</span> : null}
+                        {inCollection ? <span className="pill pillCollection">Dans la collection</span> : null}
+                        {!inCollection && inWishlist ? <span className="pill pillWishlist">Dans la wishlist</span> : null}
                     </div>
 
                     <div style={{ marginTop: 10, opacity: 0.8 }}>
@@ -386,10 +386,10 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                         {!inCollection && !inWishlist ? (
                             <>
                                 <button onClick={() => addToList("wishlist")} disabled={actionLoading}>
-                                    Add to wishlist
+                                    Ajouter à la wishlist
                                 </button>
                                 <button onClick={() => addToList("collection")} disabled={actionLoading}>
-                                    Add to collection
+                                    Ajouter à la collection
                                 </button>
                             </>
                         ) : null}
@@ -397,17 +397,17 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                         {inWishlist ? (
                             <>
                                 <button onClick={moveWishlistToCollection} disabled={actionLoading}>
-                                    Move to collection
+                                    Déplacer vers la collection
                                 </button>
                                 <button onClick={() => removeFromList("wishlist")} disabled={actionLoading}>
-                                    Remove from wishlist
+                                    Retirer de la wishlist
                                 </button>
                             </>
                         ) : null}
 
                         {inCollection ? (
                             <button onClick={() => removeFromList("collection")} disabled={actionLoading}>
-                                Remove from collection
+                                Retirer de la collection
                             </button>
                         ) : null}
                     </div>
@@ -416,7 +416,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 </div>
             </div>
 
-            <h2 style={{ marginTop: 22 }}>Tracklist</h2>
+            <h2 style={{ marginTop: 22 }}>Pistes</h2>
             <div style={{ display: "grid", gap: 6 }}>
                 {(release.tracklist ?? []).map((t, i) => (
                     <div key={`${t.position}_${t.title}_${i}`} style={{ display: "flex", gap: 12 }}>

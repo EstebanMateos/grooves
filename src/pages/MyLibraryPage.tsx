@@ -88,7 +88,7 @@ export default function MyLibraryPage() {
 
             if (!session) {
                 setItems([]);
-                setError("Please login first.");
+                setError("Merci de te connecter.");
                 return;
             }
 
@@ -168,7 +168,7 @@ export default function MyLibraryPage() {
             const session = sessionData.session;
 
             if (!session) {
-                setError("Please login first.");
+                setError("Merci de te connecter.");
                 return;
             }
 
@@ -202,7 +202,7 @@ export default function MyLibraryPage() {
             });
             await library.reload();
 
-            setStatus(userRecord.list_type === "collection" ? "Removed from collection." : "Removed from wishlist.");
+            setStatus(userRecord.list_type === "collection" ? "Retiré de la collection." : "Retiré de la wishlist.");
         } catch (e) {
             setError(String(e));
         } finally {
@@ -230,7 +230,7 @@ export default function MyLibraryPage() {
         });
     }, [items, searchText]);
 
-    const needsLogin = error === "Please login first.";
+    const needsLogin = error === "Merci de te connecter.";
 
     return (
         <div>
@@ -238,7 +238,7 @@ export default function MyLibraryPage() {
                 <BackButton className="btn btnGhost" />
             </div>
 
-            <h1>My library</h1>
+            <h1>Ma bibliothèque</h1>
 
             {needsLogin ? (
                 <div className="panel" style={{ marginTop: 16, maxWidth: 520 }}>
@@ -257,7 +257,7 @@ export default function MyLibraryPage() {
             {needsLogin ? null : (
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
-                    All
+                    Tout
                 </button>
                 <button onClick={() => setFilter("collection")} disabled={filter === "collection"} className="btn btnGhost">
                     Collection
@@ -271,14 +271,14 @@ export default function MyLibraryPage() {
                 <input
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    placeholder="Filter by artist or title"
+                    placeholder="Filtrer par artiste ou titre"
                     className="input"
                     style={{ minWidth: 240 }}
                 />
             </div>
             )}
 
-            {loading ? <div style={{ marginTop: 12 }} className="muted">Loading…</div> : null}
+            {loading ? <div style={{ marginTop: 12 }} className="muted">Chargement…</div> : null}
             {error && !needsLogin ? <div style={{ marginTop: 12 }} className="error">{error}</div> : null}
             {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
 
@@ -324,14 +324,14 @@ export default function MyLibraryPage() {
 
                                     <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
                                         <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
-                                            Open
+                                            Ouvrir
                                         </Link>
                                         <button
                                             onClick={() => removeItem(ur)}
                                             disabled={busyId === ur.id}
                                             className="btn btnGhost"
                                         >
-                                            Remove
+                                            Retirer
                                         </button>
                                     </div>
                                 </div>

@@ -32,7 +32,7 @@ export default function App() {
         setMenuOpen(false);
     }
 
-    const displayName = profile.username || auth.user_email || "Connected";
+    const displayName = profile.username || auth.user_email || "Connecté";
     const initial = displayName.trim().charAt(0).toUpperCase() || "U";
 
     useEffect(() => {
@@ -77,17 +77,17 @@ export default function App() {
                     </Link>
 
                     <Link to="/people" style={{ textDecoration: "none" }}>
-                        People
+                        Profils
                     </Link>
 
                     <Link to="/my-library" style={{ textDecoration: "none" }}>
-                        My library
+                        Ma bibliothèque
                     </Link>
                 </div>
 
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     {auth.is_loading ? (
-                        <span style={{ opacity: 0.7, fontSize: 14 }}>Checking session…</span>
+                        <span style={{ opacity: 0.7, fontSize: 14 }}>Vérification de la session…</span>
                     ) : auth.is_authenticated ? (
                         <>
                             <div style={{ position: "relative" }} ref={menuRef}>
@@ -144,7 +144,7 @@ export default function App() {
                                             style={{ justifyContent: "flex-start" }}
                                             role="menuitem"
                                         >
-                                            Profile
+                                            Profil
                                         </Link>
                                         <button
                                             className="btn btnGhost"
@@ -155,7 +155,7 @@ export default function App() {
                                             style={{ justifyContent: "flex-start" }}
                                             role="menuitem"
                                         >
-                                            Logout
+                                            Déconnexion
                                         </button>
                                     </div>
                                 ) : null}
@@ -163,9 +163,9 @@ export default function App() {
                         </>
                     ) : (
                         <>
-                            <span style={{ opacity: 0.8, fontSize: 14 }}>Not logged in</span>
+                            <span style={{ opacity: 0.8, fontSize: 14 }}>Non connecté</span>
                             <Link to="/login" className="btn btnPrimary">
-                                Login
+                                Se connecter
                             </Link>
                         </>
                     )}

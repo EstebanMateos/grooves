@@ -267,26 +267,26 @@ export default function DiscoverProfilesPage() {
                 <BackButton className="btn btnGhost" />
             </div>
 
-            <h1>Discover profiles</h1>
+            <h1>Découvrir des profils</h1>
 
             <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
                 <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search username"
+                    placeholder="Rechercher un pseudo"
                     style={{ flex: 1 }}
                 />
                 <button onClick={search} disabled={loading || !query.trim()}>
-                    Search
+                    Rechercher
                 </button>
             </div>
 
-            {loading || defaultLoading || favoritesLoading ? <div style={{ marginTop: 12 }}>Loading…</div> : null}
+            {loading || defaultLoading || favoritesLoading ? <div style={{ marginTop: 12 }}>Chargement…</div> : null}
             {error ? <div style={{ marginTop: 12, color: "red" }}>{error}</div> : null}
             {favoriteStatus ? <div style={{ marginTop: 12 }} className="error">{favoriteStatus}</div> : null}
 
             {!loading && !error && query.trim() && results.length === 0 ? (
-                <div style={{ marginTop: 12, opacity: 0.8 }}>No public profiles match this username.</div>
+                <div style={{ marginTop: 12, opacity: 0.8 }}>Aucun profil public ne correspond à ce pseudo.</div>
             ) : null}
 
             {favorites.length > 0 ? (
@@ -331,7 +331,7 @@ export default function DiscoverProfilesPage() {
                                         <button
                                             className={`btn ${isFavorite ? "btnPrimary" : "btnGhost"}`}
                                             onClick={() => toggleFavorite(r.username)}
-                                            aria-label="Remove favorite"
+                                            aria-label="Retirer des favoris"
                                         >
                                             {isFavorite ? "★ Favori" : "☆ Ajouter"}
                                         </button>
@@ -385,7 +385,7 @@ export default function DiscoverProfilesPage() {
                                         <button
                                             className={`btn ${isFavorite ? "btnPrimary" : "btnGhost"}`}
                                             onClick={() => toggleFavorite(r.username)}
-                                            aria-label="Add favorite"
+                                            aria-label="Ajouter aux favoris"
                                         >
                                             {isFavorite ? "★ Favori" : "☆ Ajouter"}
                                         </button>
@@ -435,7 +435,7 @@ export default function DiscoverProfilesPage() {
                                     <button
                                         className={`btn ${isFavorite ? "btnPrimary" : "btnGhost"}`}
                                         onClick={() => toggleFavorite(r.username)}
-                                        aria-label="Add favorite"
+                                        aria-label="Ajouter aux favoris"
                                     >
                                         {isFavorite ? "★ Favori" : "☆ Ajouter"}
                                     </button>

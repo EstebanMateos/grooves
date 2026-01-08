@@ -33,7 +33,7 @@ export default function ProfileSettingsPage() {
                 const session = sessionData.session;
 
                 if (!session) {
-                    setError("Please login first.");
+                    setError("Merci de te connecter.");
                     return;
                 }
 
@@ -83,13 +83,13 @@ export default function ProfileSettingsPage() {
             const session = sessionData.session;
 
             if (!session) {
-                setError("Please login first.");
+                setError("Merci de te connecter.");
                 return;
             }
 
             const normalized = normalizeUsername(username);
             if (!normalized) {
-                setError("Invalid username.");
+                setError("Pseudo invalide.");
                 return;
             }
 
@@ -107,7 +107,7 @@ export default function ProfileSettingsPage() {
             }
 
             setUsername(normalized);
-            setStatus("Saved.");
+            setStatus("Enregistré.");
         } catch (e) {
             setError(String(e));
         } finally {
@@ -123,7 +123,7 @@ export default function ProfileSettingsPage() {
             setError(String(signOutError));
             return;
         }
-        setStatus("Signed out.");
+        setStatus("Déconnecté.");
     }
 
     const hasPublicProfile = !!username.trim();
@@ -134,15 +134,15 @@ export default function ProfileSettingsPage() {
                 <BackButton className="btn btnGhost" />
             </div>
 
-            <h1>Profile</h1>
+            <h1>Profil</h1>
 
-            {loading ? <div style={{ marginTop: 12 }}>Loading…</div> : null}
+            {loading ? <div style={{ marginTop: 12 }}>Chargement…</div> : null}
             {error ? <div style={{ marginTop: 12, color: "red" }}>{error}</div> : null}
             {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
 
             <div style={{ marginTop: 16, display: "grid", gap: 12, maxWidth: 520 }}>
                 <label style={{ display: "grid", gap: 6 }}>
-                    <div style={{ fontSize: 14, opacity: 0.8 }}>Username</div>
+                    <div style={{ fontSize: 14, opacity: 0.8 }}>Pseudo</div>
                     <input
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
@@ -151,11 +151,13 @@ export default function ProfileSettingsPage() {
                         autoCorrect="off"
                         spellCheck={false}
                     />
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>Allowed: a z 0 9 underscore. Spaces are removed.</div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        Autorisé : a z 0 9 underscore. Les espaces sont supprimés.
+                    </div>
                 </label>
 
                 <label style={{ display: "grid", gap: 6 }}>
-                    <div style={{ fontSize: 14, opacity: 0.8 }}>Display name</div>
+                    <div style={{ fontSize: 14, opacity: 0.8 }}>Nom affiché</div>
                     <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Esteban" />
                 </label>
 
@@ -165,7 +167,7 @@ export default function ProfileSettingsPage() {
                         checked={isPublicCollection}
                         onChange={(e) => setIsPublicCollection(e.target.checked)}
                     />
-                    <span>Public collection</span>
+                    <span>Collection publique</span>
                 </label>
 
                 <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -174,12 +176,12 @@ export default function ProfileSettingsPage() {
                         checked={isPublicWishlist}
                         onChange={(e) => setIsPublicWishlist(e.target.checked)}
                     />
-                    <span>Public wishlist</span>
+                    <span>Wishlist publique</span>
                 </label>
 
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <button onClick={save} disabled={loading} className="btn btnPrimary">
-                        Save
+                        Enregistrer
                     </button>
 
                     {hasPublicProfile ? (
@@ -188,12 +190,12 @@ export default function ProfileSettingsPage() {
                             className="btn btnGhost"
                             disabled={loading}
                         >
-                            Open public profile
+                            Ouvrir le profil public
                         </button>
                     ) : null}
 
                     <button onClick={signOut} className="btn btnGhost" disabled={loading}>
-                        Logout
+                        Déconnexion
                     </button>
                 </div>
             </div>
