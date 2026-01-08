@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
+import BackButton from "../components/BackButton";
 
 type RecordRow = {
     id: string;
@@ -38,7 +39,7 @@ export default function MyLibraryPage() {
     const [busyId, setBusyId] = useState<string | null>(null);
     const [error, setError] = useState<string>("");
     const [status, setStatus] = useState<string>("");
-    const [filter, setFilter] = useState<FilterType>("collection");
+    const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
 
     async function load() {
@@ -178,20 +179,20 @@ export default function MyLibraryPage() {
     return (
         <div>
             <div style={{ marginBottom: 12 }}>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
             </div>
 
             <h1>My library</h1>
 
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
+                    All
+                </button>
                 <button onClick={() => setFilter("collection")} disabled={filter === "collection"} className="btn btnGhost">
                     Collection
                 </button>
                 <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"} className="btn btnGhost">
                     Wishlist
-                </button>
-                <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
-                    All
                 </button>
 
                 <div style={{ flex: 1 }} />

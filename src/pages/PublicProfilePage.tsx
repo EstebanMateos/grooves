@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import BackButton from "../components/BackButton";
 
 type PublicLibraryRow = {
     list_type: "collection" | "wishlist";
@@ -99,7 +100,7 @@ export default function PublicProfilePage() {
         return (
             <div>
                 <div style={{ marginBottom: 12 }}>
-                    <Link to="/">← Back</Link>
+                    <BackButton className="btn btnGhost" />
                 </div>
                 <h1>Profile not found</h1>
                 <div style={{ opacity: 0.8, marginTop: 8 }}>No user exists with username: {username}</div>
@@ -111,7 +112,7 @@ export default function PublicProfilePage() {
         return (
             <div>
                 <div style={{ marginBottom: 12 }}>
-                    <Link to="/">← Back</Link>
+                    <BackButton className="btn btnGhost" />
                 </div>
                 <h1>This profile is private</h1>
                 <div style={{ opacity: 0.8, marginTop: 8 }}>
@@ -124,7 +125,7 @@ export default function PublicProfilePage() {
     return (
         <div>
             <div style={{ marginBottom: 12 }}>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
             </div>
 
             <h1>Library: {username}</h1>

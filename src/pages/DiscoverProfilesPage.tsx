@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import BackButton from "../components/BackButton";
 
 type PublicProfileRow = {
     username: string;
@@ -79,7 +80,7 @@ export default function DiscoverProfilesPage() {
     return (
         <div>
             <div style={{ marginBottom: 12 }}>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
             </div>
 
             <h1>Discover profiles</h1>

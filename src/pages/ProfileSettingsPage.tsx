@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import BackButton from "../components/BackButton";
 
 type ProfileRow = {
     id: string;
@@ -19,7 +20,7 @@ export default function ProfileSettingsPage() {
     const [displayName, setDisplayName] = useState<string>("");
     const [isPublicCollection, setIsPublicCollection] = useState<boolean>(true);
     const [isPublicWishlist, setIsPublicWishlist] = useState<boolean>(true);
-    const [myPublicUrl, setMyPublicUrl] = useState<string>("");
+    const navigate = useNavigate();
 
     useEffect(() => {
         async function load() {
@@ -53,9 +54,6 @@ export default function ProfileSettingsPage() {
                     setIsPublicCollection(!!row.is_public_collection);
                     setIsPublicWishlist(!!row.is_public_wishlist);
 
-                    if (row.username) {
-                        setMyPublicUrl(`${window.location.origin}/u/${row.username}`);
-                    }
                 }
             } catch (e) {
                 setError(String(e));
@@ -109,7 +107,6 @@ export default function ProfileSettingsPage() {
             }
 
             setUsername(normalized);
-            setMyPublicUrl(`${window.location.origin}/u/${normalized}`);
             setStatus("Saved.");
         } catch (e) {
             setError(String(e));
@@ -118,18 +115,23 @@ export default function ProfileSettingsPage() {
         }
     }
 
-    async function copyUrl() {
-        if (!myPublicUrl) {
+    async function signOut() {
+        setStatus("");
+        setError("");
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) {
+            setError(String(signOutError));
             return;
         }
-        await navigator.clipboard.writeText(myPublicUrl);
-        setStatus("Copied.");
+        setStatus("Signed out.");
     }
+
+    const hasPublicProfile = !!username.trim();
 
     return (
         <div>
             <div style={{ marginBottom: 12 }}>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
             </div>
 
             <h1>Profile</h1>
@@ -176,21 +178,24 @@ export default function ProfileSettingsPage() {
                 </label>
 
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <button onClick={save} disabled={loading}>
+                    <button onClick={save} disabled={loading} className="btn btnPrimary">
                         Save
                     </button>
 
-                    {myPublicUrl ? (
-                        <>
-                            <Link to={`/u/${username}`}>Open public profile</Link>
-                            <button onClick={copyUrl}>Copy link</button>
-                        </>
+                    {hasPublicProfile ? (
+                        <button
+                            onClick={() => navigate(`/u/${username}`)}
+                            className="btn btnGhost"
+                            disabled={loading}
+                        >
+                            Open public profile
+                        </button>
                     ) : null}
-                </div>
 
-                {myPublicUrl ? (
-                    <div style={{ fontSize: 13, opacity: 0.75, wordBreak: "break-all" }}>{myPublicUrl}</div>
-                ) : null}
+                    <button onClick={signOut} className="btn btnGhost" disabled={loading}>
+                        Logout
+                    </button>
+                </div>
             </div>
         </div>
     );

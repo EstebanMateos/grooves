@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 
 type RecordRow = {
@@ -44,6 +44,7 @@ type Props = {
 };
 
 export default function HomePage(props: Props) {
+    const navigate = useNavigate();
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
     const [libraryLoading, setLibraryLoading] = useState<boolean>(false);
@@ -201,18 +202,7 @@ export default function HomePage(props: Props) {
         await fetchSearchPage(1, false);
     }
 
-    async function loadMore() {
-        if (searchLoading) {
-            return;
-        }
-        const nextPage = page + 1;
-        if (nextPage > pagesTotal) {
-            return;
-        }
-        await fetchSearchPage(nextPage, true);
-    }
-
-    const canLoadMore = !searchLoading && query.length > 0 && page < pagesTotal;
+    const canOpenSearch = !searchLoading && query.length > 0 && results.length > 0;
 
     const heroSubtitle = useMemo(() => {
         if (isAuthenticated) {
@@ -240,10 +230,10 @@ export default function HomePage(props: Props) {
                         </div>
                     ) : (
                         <div className="heroCtas">
-                            <Link className="btn btnPrimary" to="/my-library">
+                            <Link className="btn btnPrimary" to="/my-library" style={{ justifyContent: "center" }}>
                                 Ouvrir ma bibliothèque
                             </Link>
-                            <Link className="btn btnGhost" to="/profile">
+                            <Link className="btn btnGhost" to="/profile" style={{ justifyContent: "center" }}>
                                 Paramètres du profil
                             </Link>
                         </div>
@@ -258,6 +248,11 @@ export default function HomePage(props: Props) {
                                 className="input"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && query.trim() && !searchLoading) {
+                                        search();
+                                    }
+                                }}
                                 placeholder="Daft Punk, Discovery, 10th anniversary"
                             />
                             <button className="btn btnPrimary" onClick={search} disabled={!query || searchLoading}>
@@ -299,7 +294,11 @@ export default function HomePage(props: Props) {
                                 </div>
 
                                 <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
-                                    <button className="btn btnGhost" onClick={loadMore} disabled={!canLoadMore}>
+                                    <button
+                                        className="btn btnGhost"
+                                        onClick={() => navigate(`/search?q=${encodeURIComponent(query)}`)}
+                                        disabled={!canOpenSearch}
+                                    >
                                         Charger plus
                                     </button>
                                 </div>

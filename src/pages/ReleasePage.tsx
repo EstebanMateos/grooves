@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
+import BackButton from "../components/BackButton";
 
 type DiscogsRelease = {
     id: number;
@@ -326,7 +327,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     if (error) {
         return (
             <div>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
                 <div style={{ color: "red", marginTop: 12 }}>{error}</div>
             </div>
         );
@@ -335,7 +336,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     if (!release) {
         return (
             <div>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
                 <div>No data</div>
             </div>
         );
@@ -353,7 +354,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     return (
         <div>
             <div style={{ marginBottom: 12 }}>
-                <Link to="/">← Back</Link>
+                <BackButton className="btn btnGhost" />
             </div>
 
             <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
