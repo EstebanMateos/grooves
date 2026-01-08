@@ -186,12 +186,7 @@ export default function PublicProfilePage() {
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                                 <div style={{ fontWeight: 700 }}>{r.title}</div>
                                 <span
-                                    style={{
-                                        fontSize: 12,
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: r.list_type === "collection" ? "#d1fae5" : "#e0e7ff"
-                                    }}
+                                    className={`pill ${r.list_type === "collection" ? "pillCollection" : "pillWishlist"}`}
                                 >
                                     {r.list_type === "collection" ? "Collection" : "Wishlist"}
                                 </span>

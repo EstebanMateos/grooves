@@ -310,7 +310,11 @@ export default function MyLibraryPage() {
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                                         <div style={{ fontWeight: 800 }}>{r.title}</div>
-                                        <span className="muted small">{ur.list_type}</span>
+                                        <span
+                                            className={`pill ${ur.list_type === "collection" ? "pillCollection" : "pillWishlist"}`}
+                                        >
+                                            {ur.list_type === "collection" ? "Collection" : "Wishlist"}
+                                        </span>
                                     </div>
 
                                     <div className="muted" style={{ marginTop: 4 }}>

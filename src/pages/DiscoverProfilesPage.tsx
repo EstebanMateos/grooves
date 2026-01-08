@@ -324,9 +324,15 @@ export default function DiscoverProfilesPage() {
                                         </div>
                                     </div>
 
-                                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                                        <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                            {countLabel ? `${flags} · ${countLabel}` : flags}
+                                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                            {r.is_public_collection ? (
+                                                <span className="pill pillCollection">Collection</span>
+                                            ) : null}
+                                            {r.is_public_wishlist ? (
+                                                <span className="pill pillWishlist">Wishlist</span>
+                                            ) : null}
+                                            {countLabel ? <span className="muted small">{countLabel}</span> : null}
                                         </div>
                                         <button
                                             className={`btn ${isFavorite ? "btnPrimary" : "btnGhost"}`}
@@ -378,9 +384,15 @@ export default function DiscoverProfilesPage() {
                                         </div>
                                     </div>
 
-                                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                                        <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                            {countLabel ? `${flags} · ${countLabel}` : flags}
+                                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                            {r.is_public_collection ? (
+                                                <span className="pill pillCollection">Collection</span>
+                                            ) : null}
+                                            {r.is_public_wishlist ? (
+                                                <span className="pill pillWishlist">Wishlist</span>
+                                            ) : null}
+                                            {countLabel ? <span className="muted small">{countLabel}</span> : null}
                                         </div>
                                         <button
                                             className={`btn ${isFavorite ? "btnPrimary" : "btnGhost"}`}
@@ -428,9 +440,15 @@ export default function DiscoverProfilesPage() {
                                     </div>
                                 </div>
 
-                                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                        {countLabel ? `${flags} · ${countLabel}` : flags}
+                                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                        {r.is_public_collection ? (
+                                            <span className="pill pillCollection">Collection</span>
+                                        ) : null}
+                                        {r.is_public_wishlist ? (
+                                            <span className="pill pillWishlist">Wishlist</span>
+                                        ) : null}
+                                        {countLabel ? <span className="muted small">{countLabel}</span> : null}
                                     </div>
                                     <button
                                         className={`btn ${isFavorite ? "btnPrimary" : "btnGhost"}`}
