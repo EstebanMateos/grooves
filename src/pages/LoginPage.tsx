@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 
@@ -97,7 +98,7 @@ export default function LoginPage() {
                 return;
             }
 
-            let session = data.session ?? null;
+            let session: Session | null = data.session ?? null;
             if (!session) {
                 const { data: sessionData } = await supabase.auth.getSession();
                 session = sessionData.session ?? null;

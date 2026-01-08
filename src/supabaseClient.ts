@@ -17,7 +17,8 @@ function delay(ms: number) {
 }
 
 function mergeSignals(
-    signalA?: AbortSignal, signalB?: AbortSignal): AbortSignal|undefined {
+    signalA?: AbortSignal|null,
+    signalB?: AbortSignal|null): AbortSignal|undefined {
   if (!signalA) {
     return signalB;
   }
