@@ -4,9 +4,12 @@ import AuthModal from "./components/AuthModal";
 import { supabase } from "./supabaseClient";
 import { useAuthSession } from "./hooks/useAuthSession";
 import LoginPage from "./pages/LoginPage";
+import MyLibraryPage from "./pages/MyLibraryPage";
+import ProfileSettingsPage from "./pages/ProfileSettingsPage";
+import PublicProfilePage from "./pages/PublicProfilePage";
 import ReleasePage from "./pages/ReleasePage";
 import SearchPage from "./pages/SearchPage";
-import MyLibraryPage from "./pages/MyLibraryPage";
+import DiscoverProfilesPage from "./pages/DiscoverProfilesPage";
 
 export default function App() {
     const auth = useAuthSession();
@@ -30,8 +33,17 @@ export default function App() {
                     <Link to="/" style={{ textDecoration: "none", fontWeight: 700 }}>
                         Grooves
                     </Link>
+
                     <Link to="/my-library" style={{ textDecoration: "none" }}>
                         My library
+                    </Link>
+
+                    <Link to="/profile" style={{ textDecoration: "none" }}>
+                        Profile
+                    </Link>
+
+                    <Link to="/people" style={{ textDecoration: "none" }}>
+                        People
                     </Link>
                 </div>
 
@@ -56,10 +68,12 @@ export default function App() {
                 <Route path="/" element={<SearchPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/my-library" element={<MyLibraryPage />} />
+                <Route path="/profile" element={<ProfileSettingsPage />} />
+                <Route path="/u/:username" element={<PublicProfilePage />} />
+                <Route path="/people" element={<DiscoverProfilesPage />} />
                 <Route
                     path="/release/:discogsReleaseId"
-                    element={<ReleasePage onRequireAuth={() => setAuthOpen(true)} />
-                }
+                    element={<ReleasePage onRequireAuth={() => setAuthOpen(true)} />}
                 />
             </Routes>
 

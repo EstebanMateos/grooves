@@ -89,6 +89,61 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         load();
     }, [discogsReleaseId]);
 
+    async function requireSession(): Promise<{ user_id: string } | null> {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData.session;
+        if (!session) {
+            onRequireAuth();
+            return null;
+        }
+        return { user_id: session.user.id };
+    }
+
+    async function getRecordIdByDiscogsReleaseId(discogsReleaseIdValue: number): Promise<string | null> {
+        const { data, error: dbError } = await supabase
+            .from("records")
+            .select("id")
+            .eq("discogs_release_id", discogsReleaseIdValue)
+            .maybeSingle();
+
+        if (dbError) {
+            throw dbError;
+        }
+
+        return data?.id ?? null;
+    }
+
+    async function upsertRecordFromRelease(releaseData: DiscogsRelease): Promise<string> {
+        const artist = extractArtist(releaseData);
+        const { label, catno } = extractLabel(releaseData);
+        const { thumb_url, cover_url } = extractImages(releaseData);
+
+        const recordPayload = {
+            discogs_release_id: releaseData.id,
+            title: releaseData.title,
+            artist,
+            year: releaseData.year ?? null,
+            country: releaseData.country ?? null,
+            thumb_url,
+            cover_url,
+            label: label || null,
+            catno: catno || null,
+            data_json: releaseData
+        };
+
+        const { data: recordRow, error: recordError } = await supabase
+            .from("records")
+            .upsert(recordPayload, { onConflict: "discogs_release_id" })
+            .select("id")
+            .single();
+
+        if (recordError || !recordRow?.id) {
+            throw recordError ?? new Error("Failed to save record");
+        }
+
+        return recordRow.id as string;
+    }
+
     async function addToList(listType: "wishlist" | "collection") {
         if (!release) {
             return;
@@ -98,11 +153,8 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         setActionLoading(true);
 
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
-
+            const session = await requireSession();
             if (!session) {
-                onRequireAuth();
                 return;
             }
 
@@ -114,52 +166,24 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 return;
             }
 
-            if (listType === "wishlist" && inWishlistNow) {
-                setActionStatus("Already in wishlist.");
+            if (listType === "wishlist" && (inWishlistNow || inCollectionNow)) {
+                setActionStatus(inCollectionNow ? "Already in collection." : "Already in wishlist.");
                 return;
             }
 
-            const userId = session.user.id;
+            const userId = session.user_id;
+            const recordId = await upsertRecordFromRelease(release);
 
-            const artist = extractArtist(release);
-            const { label, catno } = extractLabel(release);
-            const { thumb_url, cover_url } = extractImages(release);
+            if (listType === "collection" && inWishlistNow) {
+                const { error: rmWishError } = await supabase
+                    .from("user_records")
+                    .delete()
+                    .eq("user_id", userId)
+                    .eq("record_id", recordId)
+                    .eq("list_type", "wishlist");
 
-            const recordPayload = {
-                discogs_release_id: release.id,
-                title: release.title,
-                artist,
-                year: release.year ?? null,
-                country: release.country ?? null,
-                thumb_url,
-                cover_url,
-                label: label || null,
-                catno: catno || null,
-                data_json: release
-            };
-
-            const { data: recordRow, error: recordError } = await supabase
-                .from("records")
-                .upsert(recordPayload, { onConflict: "discogs_release_id" })
-                .select("id")
-                .single();
-
-            if (recordError || !recordRow?.id) {
-                throw recordError ?? new Error("Failed to save record");
-            }
-
-            if (listType === "collection") {
-                if (inWishlistNow) {
-                    const { error: rmWishError } = await supabase
-                        .from("user_records")
-                        .delete()
-                        .eq("user_id", userId)
-                        .eq("record_id", recordRow.id)
-                        .eq("list_type", "wishlist");
-
-                    if (rmWishError) {
-                        throw rmWishError;
-                    }
+                if (rmWishError) {
+                    throw rmWishError;
                 }
             }
 
@@ -168,7 +192,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 .upsert(
                     {
                         user_id: userId,
-                        record_id: recordRow.id,
+                        record_id: recordId,
                         list_type: listType
                     },
                     { onConflict: "user_id,record_id,list_type" }
@@ -197,6 +221,99 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             setActionStatus(listType === "wishlist" ? "Added to wishlist." : "Added to collection.");
         } catch (e) {
             setActionStatus(String(e));
+        } finally {
+            setActionLoading(false);
+        }
+    }
+
+    async function removeFromList(listType: "wishlist" | "collection") {
+        if (!release) {
+            return;
+        }
+
+        setActionStatus("");
+        setActionLoading(true);
+
+        try {
+            const session = await requireSession();
+            if (!session) {
+                return;
+            }
+
+            const userId = session.user_id;
+
+            const recordId = await getRecordIdByDiscogsReleaseId(release.id);
+            if (!recordId) {
+                await library.reload();
+                setActionStatus("Removed.");
+                return;
+            }
+
+            const { data: userRecordRow, error: userRecordFetchError } = await supabase
+                .from("user_records")
+                .select("id")
+                .eq("user_id", userId)
+                .eq("record_id", recordId)
+                .eq("list_type", listType)
+                .maybeSingle();
+
+            if (userRecordFetchError) {
+                throw userRecordFetchError;
+            }
+
+            const userRecordId = userRecordRow?.id ?? null;
+
+            if (listType === "collection" && userRecordId) {
+                const { error: collError } = await supabase
+                    .from("collection_items")
+                    .delete()
+                    .eq("user_record_id", userRecordId);
+
+                if (collError) {
+                    throw collError;
+                }
+            }
+
+            const { error: delError } = await supabase
+                .from("user_records")
+                .delete()
+                .eq("user_id", userId)
+                .eq("record_id", recordId)
+                .eq("list_type", listType);
+
+            if (delError) {
+                throw delError;
+            }
+
+            await library.reload();
+            setActionStatus(listType === "wishlist" ? "Removed from wishlist." : "Removed from collection.");
+        } catch (e) {
+            setActionStatus(String(e));
+        } finally {
+            setActionLoading(false);
+        }
+    }
+
+    async function moveWishlistToCollection() {
+        if (!release) {
+            return;
+        }
+
+        setActionStatus("");
+        setActionLoading(true);
+
+        try {
+            const session = await requireSession();
+            if (!session) {
+                return;
+            }
+
+            if (library.collection_ids.has(release.id)) {
+                setActionStatus("Already in collection.");
+                return;
+            }
+
+            await addToList("collection");
         } finally {
             setActionLoading(false);
         }
@@ -232,9 +349,6 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
     const inCollection = library.collection_ids.has(release.id);
     const inWishlist = !inCollection && library.wishlist_ids.has(release.id);
-
-    const canAddToCollection = !inCollection && !actionLoading;
-    const canAddToWishlist = !inCollection && !inWishlist && !actionLoading;
 
     return (
         <div>
@@ -275,13 +389,34 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                     {labelLine ? <div style={{ marginTop: 6, opacity: 0.8 }}>{labelLine}</div> : null}
                     {formatsLine ? <div style={{ marginTop: 6, opacity: 0.8 }}>{formatsLine}</div> : null}
 
-                    <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-                        <button onClick={() => addToList("wishlist")} disabled={!canAddToWishlist}>
-                            Add to wishlist
-                        </button>
-                        <button onClick={() => addToList("collection")} disabled={!canAddToCollection}>
-                            Add to collection
-                        </button>
+                    <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {!inCollection && !inWishlist ? (
+                            <>
+                                <button onClick={() => addToList("wishlist")} disabled={actionLoading}>
+                                    Add to wishlist
+                                </button>
+                                <button onClick={() => addToList("collection")} disabled={actionLoading}>
+                                    Add to collection
+                                </button>
+                            </>
+                        ) : null}
+
+                        {inWishlist ? (
+                            <>
+                                <button onClick={moveWishlistToCollection} disabled={actionLoading}>
+                                    Move to collection
+                                </button>
+                                <button onClick={() => removeFromList("wishlist")} disabled={actionLoading}>
+                                    Remove from wishlist
+                                </button>
+                            </>
+                        ) : null}
+
+                        {inCollection ? (
+                            <button onClick={() => removeFromList("collection")} disabled={actionLoading}>
+                                Remove from collection
+                            </button>
+                        ) : null}
                     </div>
 
                     {actionStatus ? <div style={{ marginTop: 8, fontSize: 14 }}>{actionStatus}</div> : null}

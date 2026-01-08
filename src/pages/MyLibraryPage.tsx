@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
 
 type RecordRow = {
@@ -24,12 +25,15 @@ type UserRecordRow = {
 type FilterType = "collection" | "wishlist" | "all";
 
 export default function MyLibraryPage() {
+    const library = useUserLibraryIndex();
+
     const [items, setItems] = useState<UserRecordRow[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [error, setError] = useState<string>("");
     const [status, setStatus] = useState<string>("");
     const [filter, setFilter] = useState<FilterType>("collection");
+    const [searchText, setSearchText] = useState<string>("");
 
     async function load() {
         setLoading(true);
@@ -46,7 +50,7 @@ export default function MyLibraryPage() {
                 return;
             }
 
-            const q = supabase
+            const baseQuery = supabase
                 .from("user_records")
                 .select(
                     `
@@ -70,7 +74,7 @@ export default function MyLibraryPage() {
                 .order("created_at", { ascending: false });
 
             const { data, error: dbError } =
-                filter === "all" ? await q : await q.eq("list_type", filter);
+                filter === "all" ? await baseQuery : await baseQuery.eq("list_type", filter);
 
             if (dbError) {
                 throw dbError;
@@ -124,6 +128,8 @@ export default function MyLibraryPage() {
             }
 
             setItems((prev) => prev.filter((x) => x.id !== userRecord.id));
+            await library.reload();
+
             setStatus(userRecord.list_type === "collection" ? "Removed from collection." : "Removed from wishlist.");
         } catch (e) {
             setError(String(e));
@@ -131,6 +137,22 @@ export default function MyLibraryPage() {
             setBusyId(null);
         }
     }
+
+    const filteredItems = useMemo(() => {
+        const needle = searchText.trim().toLowerCase();
+        if (!needle) {
+            return items;
+        }
+
+        return items.filter((ur) => {
+            const r = ur.records;
+            if (!r) {
+                return false;
+            }
+            const hay = `${r.artist} ${r.title}`.toLowerCase();
+            return hay.includes(needle);
+        });
+    }, [items, searchText]);
 
     return (
         <div>
@@ -140,7 +162,7 @@ export default function MyLibraryPage() {
 
             <h1>My library</h1>
 
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <button onClick={() => setFilter("collection")} disabled={filter === "collection"}>
                     Collection
                 </button>
@@ -150,6 +172,15 @@ export default function MyLibraryPage() {
                 <button onClick={() => setFilter("all")} disabled={filter === "all"}>
                     All
                 </button>
+
+                <div style={{ flex: 1 }} />
+
+                <input
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Filter by artist or title"
+                    style={{ minWidth: 240 }}
+                />
             </div>
 
             {loading ? <div style={{ marginTop: 12 }}>Loading…</div> : null}
@@ -157,7 +188,7 @@ export default function MyLibraryPage() {
             {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
 
             <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-                {items.map((ur) => {
+                {filteredItems.map((ur) => {
                     const r = ur.records;
                     if (!r) {
                         return null;
@@ -187,9 +218,16 @@ export default function MyLibraryPage() {
                             <div style={{ flex: 1 }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                                     <div style={{ fontWeight: 700 }}>{r.title}</div>
-                                    <div style={{ fontSize: 13, opacity: 0.8 }}>
+                                    <span
+                                        style={{
+                                            fontSize: 12,
+                                            padding: "2px 6px",
+                                            borderRadius: 4,
+                                            background: ur.list_type === "collection" ? "#d1fae5" : "#e0e7ff"
+                                        }}
+                                    >
                                         {ur.list_type === "collection" ? "Collection" : "Wishlist"}
-                                    </div>
+                                    </span>
                                 </div>
 
                                 <div style={{ opacity: 0.85 }}>{r.artist}</div>
@@ -203,7 +241,7 @@ export default function MyLibraryPage() {
                                     {r.catno ? ` · ${r.catno}` : ""}
                                 </div>
 
-                                <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                                <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
                                     <Link to={`/release/${r.discogs_release_id}`}>Open</Link>
                                     <button onClick={() => removeItem(ur)} disabled={busyId === ur.id}>
                                         Remove
