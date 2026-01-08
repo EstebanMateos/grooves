@@ -10,6 +10,7 @@ import PublicProfilePage from "./pages/PublicProfilePage";
 import ReleasePage from "./pages/ReleasePage";
 import SearchPage from "./pages/SearchPage";
 import DiscoverProfilesPage from "./pages/DiscoverProfilesPage";
+import HomePage from "./pages/HomePage";
 
 export default function App() {
     const auth = useAuthSession();
@@ -65,7 +66,7 @@ export default function App() {
             </header>
 
             <Routes>
-                <Route path="/" element={<SearchPage />} />
+                <Route path="/" element={<HomePage onRequireAuth={() => setAuthOpen(true)} />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/my-library" element={<MyLibraryPage />} />
                 <Route path="/profile" element={<ProfileSettingsPage />} />
