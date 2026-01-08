@@ -3,14 +3,13 @@ import { Link, Route, Routes } from "react-router-dom";
 import AuthModal from "./components/AuthModal";
 import { supabase } from "./supabaseClient";
 import { useAuthSession } from "./hooks/useAuthSession";
+import DiscoverProfilesPage from "./pages/DiscoverProfilesPage";
+import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import MyLibraryPage from "./pages/MyLibraryPage";
 import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import ReleasePage from "./pages/ReleasePage";
-import SearchPage from "./pages/SearchPage";
-import DiscoverProfilesPage from "./pages/DiscoverProfilesPage";
-import HomePage from "./pages/HomePage";
 
 export default function App() {
     const auth = useAuthSession();
@@ -21,7 +20,7 @@ export default function App() {
     }
 
     return (
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: 16 }}>
+        <div style={{ maxWidth: 1080, margin: "0 auto", padding: 16 }}>
             <header
                 style={{
                     display: "flex",
@@ -31,8 +30,12 @@ export default function App() {
                 }}
             >
                 <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                    <Link to="/" style={{ textDecoration: "none", fontWeight: 700 }}>
+                    <Link to="/" style={{ textDecoration: "none", fontWeight: 800, letterSpacing: 0.2 }}>
                         Grooves
+                    </Link>
+
+                    <Link to="/people" style={{ textDecoration: "none" }}>
+                        People
                     </Link>
 
                     <Link to="/my-library" style={{ textDecoration: "none" }}>
@@ -42,10 +45,6 @@ export default function App() {
                     <Link to="/profile" style={{ textDecoration: "none" }}>
                         Profile
                     </Link>
-
-                    <Link to="/people" style={{ textDecoration: "none" }}>
-                        People
-                    </Link>
                 </div>
 
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -54,12 +53,16 @@ export default function App() {
                     ) : auth.is_authenticated ? (
                         <>
                             <span style={{ opacity: 0.8, fontSize: 14 }}>{auth.user_email ?? "Connected"}</span>
-                            <button onClick={signOut}>Logout</button>
+                            <button className="btn btnGhost" onClick={signOut}>
+                                Logout
+                            </button>
                         </>
                     ) : (
                         <>
                             <span style={{ opacity: 0.8, fontSize: 14 }}>Not logged in</span>
-                            <button onClick={() => setAuthOpen(true)}>Login</button>
+                            <button className="btn btnPrimary" onClick={() => setAuthOpen(true)}>
+                                Login
+                            </button>
                         </>
                     )}
                 </div>
@@ -68,10 +71,10 @@ export default function App() {
             <Routes>
                 <Route path="/" element={<HomePage onRequireAuth={() => setAuthOpen(true)} />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/people" element={<DiscoverProfilesPage />} />
                 <Route path="/my-library" element={<MyLibraryPage />} />
                 <Route path="/profile" element={<ProfileSettingsPage />} />
                 <Route path="/u/:username" element={<PublicProfilePage />} />
-                <Route path="/people" element={<DiscoverProfilesPage />} />
                 <Route
                     path="/release/:discogsReleaseId"
                     element={<ReleasePage onRequireAuth={() => setAuthOpen(true)} />}

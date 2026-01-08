@@ -277,9 +277,7 @@ export default function HomePage(props: Props) {
                                         <Link key={r.id} to={`/release/${r.id}`} className="cardLink">
                                             <div className="card">
                                                 <div className="thumb">
-                                                    {r.thumb ? (
-                                                        <img className="thumbImg" src={r.thumb} alt={r.title} />
-                                                    ) : null}
+                                                    {r.thumb ? <img className="thumbImg" src={r.thumb} alt={r.title} /> : null}
                                                 </div>
                                                 <div className="cardBody">
                                                     <div className="cardTitle">{r.title}</div>
@@ -409,9 +407,7 @@ export default function HomePage(props: Props) {
             </section>
 
             <footer className="footer">
-                <div className="muted small">
-                    Données Discogs via proxy, stockage et auth via Supabase.
-                </div>
+                <div className="muted small">Données Discogs via proxy, stockage et auth via Supabase.</div>
             </footer>
         </div>
     );
