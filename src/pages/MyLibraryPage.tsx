@@ -19,7 +19,7 @@ type UserRecordRow = {
     id: string;
     list_type: "collection" | "wishlist";
     record_id: string;
-    records: RecordRow | null;
+    records: RecordRow[];
 };
 
 type FilterType = "collection" | "wishlist" | "all";
@@ -80,7 +80,7 @@ export default function MyLibraryPage() {
                 throw dbError;
             }
 
-            setItems((data ?? []) as UserRecordRow[]);
+            setItems((data ?? []) as unknown as UserRecordRow[]);
         } catch (e) {
             setError(String(e));
         } finally {
@@ -145,7 +145,7 @@ export default function MyLibraryPage() {
         }
 
         return items.filter((ur) => {
-            const r = ur.records;
+            const r = ur.records?.[0];
             if (!r) {
                 return false;
             }
@@ -189,7 +189,7 @@ export default function MyLibraryPage() {
 
             <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
                 {filteredItems.map((ur) => {
-                    const r = ur.records;
+                    const r = ur.records?.[0];
                     if (!r) {
                         return null;
                     }
