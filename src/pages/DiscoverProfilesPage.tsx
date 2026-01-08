@@ -295,9 +295,6 @@ export default function DiscoverProfilesPage() {
                     <div style={{ display: "grid", gap: 10 }}>
                         {favoriteRows.map((r) => {
                             const isFavorite = favorites.includes(r.username);
-                            const flags =
-                                `${r.is_public_collection ? "Collection" : ""}${r.is_public_collection && r.is_public_wishlist ? " · " : ""}${r.is_public_wishlist ? "Wishlist" : ""}` ||
-                                "Public";
                             const countLabel =
                                 typeof r.collection_count === "number" ? `${r.collection_count} vinyles` : null;
 
@@ -355,9 +352,6 @@ export default function DiscoverProfilesPage() {
                     <div style={{ display: "grid", gap: 10 }}>
                         {activeResults.map((r) => {
                             const isFavorite = favorites.includes(r.username);
-                            const flags =
-                                `${r.is_public_collection ? "Collection" : ""}${r.is_public_collection && r.is_public_wishlist ? " · " : ""}${r.is_public_wishlist ? "Wishlist" : ""}` ||
-                                "Public";
                             const countLabel =
                                 typeof r.collection_count === "number" ? `${r.collection_count} vinyles` : null;
 
@@ -411,9 +405,6 @@ export default function DiscoverProfilesPage() {
                 <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
                     {activeResults.map((r) => {
                         const isFavorite = favorites.includes(r.username);
-                        const flags =
-                            `${r.is_public_collection ? "Collection" : ""}${r.is_public_collection && r.is_public_wishlist ? " · " : ""}${r.is_public_wishlist ? "Wishlist" : ""}` ||
-                            "Public";
                         const countLabel =
                             typeof r.collection_count === "number" ? `${r.collection_count} vinyles` : null;
 
