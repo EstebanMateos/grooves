@@ -163,7 +163,6 @@ export default function App() {
                         </>
                     ) : (
                         <>
-                            <span style={{ opacity: 0.8, fontSize: 14 }}>Non connecté</span>
                             <Link to="/login" className="btn btnPrimary">
                                 Se connecter
                             </Link>
