@@ -13,7 +13,7 @@ type PublicProfileRow = {
 
 type FavoriteRow = {
     favorite_user_id: string;
-    profile: PublicProfileRow | null;
+    profile: PublicProfileRow[] | null;
 };
 
 export default function DiscoverProfilesPage() {
@@ -128,12 +128,14 @@ export default function DiscoverProfilesPage() {
                 throw favError;
             }
 
-            const favRows = (data ?? []) as FavoriteRow[];
-            const favList = favRows.map((r) => r.profile?.username).filter((x): x is string => !!x);
+            const favRows = (data ?? []) as unknown as FavoriteRow[];
+            const favList = favRows
+                .map((r) => r.profile?.[0]?.username)
+                .filter((x): x is string => !!x);
             setFavorites(favList);
             setFavoriteRows(
                 favRows
-                    .map((r) => r.profile)
+                    .map((r) => r.profile?.[0])
                     .filter((x): x is PublicProfileRow => !!x && (x.is_public_collection || x.is_public_wishlist))
             );
         } catch (e) {
