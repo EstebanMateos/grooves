@@ -16,28 +16,19 @@ function delay(ms: number) {
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-        controller.abort();
-    }, FETCH_TIMEOUT_MS);
-
-    if (init?.signal) {
-        if (init.signal.aborted) {
-            controller.abort();
-        } else {
-            init.signal.addEventListener("abort", () => controller.abort(), { once: true });
-        }
-    }
+    let timeoutId: number | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+            reject(new Error("Supabase: requête expirée (timeout)."));
+        }, FETCH_TIMEOUT_MS);
+    });
 
     try {
-        return await fetch(input, { ...init, signal: controller.signal });
-    } catch (error) {
-        if (controller.signal.aborted) {
-            throw new Error("Supabase: requête expirée (timeout).");
-        }
-        throw error;
+        return await Promise.race([fetch(input, init), timeoutPromise]);
     } finally {
-        window.clearTimeout(timeoutId);
+        if (timeoutId) {
+            window.clearTimeout(timeoutId);
+        }
     }
 }
 
