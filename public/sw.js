@@ -1,5 +1,11 @@
 const CACHE_NAME = "grooves-static-v1";
-const CORE_ASSETS = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
+const BASE_URL = self.registration.scope;
+const CORE_ASSETS = [
+  BASE_URL,
+  `${BASE_URL}index.html`,
+  `${BASE_URL}manifest.webmanifest`,
+  `${BASE_URL}icon.svg`
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

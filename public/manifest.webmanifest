@@ -2,14 +2,14 @@
   "name": "Grooves",
   "short_name": "Grooves",
   "description": "Ta collection de vinyles, simple a gerer, simple a partager.",
-  "start_url": "/#/",
-  "scope": "/",
+  "start_url": "/grooves/#/",
+  "scope": "/grooves/",
   "display": "standalone",
   "background_color": "#070913",
   "theme_color": "#070913",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
