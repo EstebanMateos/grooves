@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 
 type RecordRow = {
+    id: string;
     discogs_release_id: number;
     title: string;
     artist: string;
@@ -13,9 +14,9 @@ type RecordRow = {
     catno: string | null;
 };
 
-type UserRecordRow = {
+type UserRecordBaseRow = {
     list_type: "collection" | "wishlist";
-    records: RecordRow[];
+    record_id: string;
 };
 
 type DiscogsReleaseSearchItem = {
@@ -91,44 +92,51 @@ export default function HomePage(props: Props) {
                 return;
             }
 
-            const { data, error } = await supabase
+            const { data: urData, error: urError } = await supabase
                 .from("user_records")
-                .select(
-                    `
-                    list_type,
-                    records (
-                        discogs_release_id,
-                        title,
-                        artist,
-                        year,
-                        country,
-                        thumb_url,
-                        label,
-                        catno
-                    )
-                `
-                )
+                .select("list_type,record_id")
                 .eq("user_id", session.user.id)
                 .order("created_at", { ascending: false })
-                .limit(60);
+                .limit(120);
 
-            if (error) {
-                throw error;
+            if (urError) {
+                throw urError;
             }
 
-            const rows = (data ?? []) as unknown as UserRecordRow[];
+            const userRecords = (urData ?? []) as UserRecordBaseRow[];
+            if (userRecords.length === 0) {
+                setCollectionItems([]);
+                setWishlistItems([]);
+                return;
+            }
+
+            const recordIds = Array.from(new Set(userRecords.map((x) => x.record_id)));
+
+            const { data: recData, error: recError } = await supabase
+                .from("records")
+                .select("id,discogs_release_id,title,artist,year,country,thumb_url,label,catno")
+                .in("id", recordIds);
+
+            if (recError) {
+                throw recError;
+            }
+
+            const recordById = new Map<string, RecordRow>();
+            for (const r of (recData ?? []) as RecordRow[]) {
+                recordById.set(r.id, r);
+            }
 
             const collection: RecordRow[] = [];
             const wishlist: RecordRow[] = [];
 
-            for (const ur of rows) {
-                const r = ur.records?.[0];
+            for (const ur of userRecords) {
+                const r = recordById.get(ur.record_id);
                 if (!r) {
                     continue;
                 }
                 if (ur.list_type === "collection") {
                     collection.push(r);
-                } else if (ur.list_type === "wishlist") {
+                } else {
                     wishlist.push(r);
                 }
             }
@@ -352,9 +360,7 @@ export default function HomePage(props: Props) {
                                             >
                                                 <div className="card">
                                                     <div className="thumb">
-                                                        {r.thumb_url ? (
-                                                            <img className="thumbImg" src={r.thumb_url} alt={r.title} />
-                                                        ) : null}
+                                                        {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
                                                     </div>
                                                     <div className="cardBody">
                                                         <div className="cardTitle">{r.title}</div>
@@ -385,9 +391,7 @@ export default function HomePage(props: Props) {
                                             >
                                                 <div className="card">
                                                     <div className="thumb">
-                                                        {r.thumb_url ? (
-                                                            <img className="thumbImg" src={r.thumb_url} alt={r.title} />
-                                                        ) : null}
+                                                        {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
                                                     </div>
                                                     <div className="cardBody">
                                                         <div className="cardTitle">{r.title}</div>

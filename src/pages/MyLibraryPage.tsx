@@ -15,11 +15,17 @@ type RecordRow = {
     catno: string | null;
 };
 
+type UserRecordBaseRow = {
+    id: string;
+    list_type: "collection" | "wishlist";
+    record_id: string;
+};
+
 type UserRecordRow = {
     id: string;
     list_type: "collection" | "wishlist";
     record_id: string;
-    records: RecordRow[];
+    record: RecordRow | null;
 };
 
 type FilterType = "collection" | "wishlist" | "all";
@@ -50,37 +56,53 @@ export default function MyLibraryPage() {
                 return;
             }
 
-            const baseQuery = supabase
+            let q = supabase
                 .from("user_records")
-                .select(
-                    `
-                    id,
-                    list_type,
-                    record_id,
-                    records (
-                        id,
-                        discogs_release_id,
-                        title,
-                        artist,
-                        year,
-                        country,
-                        thumb_url,
-                        label,
-                        catno
-                    )
-                `
-                )
+                .select("id,list_type,record_id")
                 .eq("user_id", session.user.id)
-                .order("created_at", { ascending: false });
+                .order("created_at", { ascending: false })
+                .limit(400);
 
-            const { data, error: dbError } =
-                filter === "all" ? await baseQuery : await baseQuery.eq("list_type", filter);
-
-            if (dbError) {
-                throw dbError;
+            if (filter !== "all") {
+                q = q.eq("list_type", filter);
             }
 
-            setItems((data ?? []) as unknown as UserRecordRow[]);
+            const { data: urData, error: urError } = await q;
+
+            if (urError) {
+                throw urError;
+            }
+
+            const userRecords = (urData ?? []) as UserRecordBaseRow[];
+            if (userRecords.length === 0) {
+                setItems([]);
+                return;
+            }
+
+            const recordIds = Array.from(new Set(userRecords.map((x) => x.record_id)));
+
+            const { data: recData, error: recError } = await supabase
+                .from("records")
+                .select("id,discogs_release_id,title,artist,year,country,thumb_url,label,catno")
+                .in("id", recordIds);
+
+            if (recError) {
+                throw recError;
+            }
+
+            const recordById = new Map<string, RecordRow>();
+            for (const r of (recData ?? []) as RecordRow[]) {
+                recordById.set(r.id, r);
+            }
+
+            const merged: UserRecordRow[] = userRecords.map((ur) => ({
+                id: ur.id,
+                list_type: ur.list_type,
+                record_id: ur.record_id,
+                record: recordById.get(ur.record_id) ?? null
+            }));
+
+            setItems(merged);
         } catch (e) {
             setError(String(e));
         } finally {
@@ -145,12 +167,11 @@ export default function MyLibraryPage() {
         }
 
         return items.filter((ur) => {
-            const r = ur.records?.[0];
+            const r = ur.record;
             if (!r) {
                 return false;
             }
-            const hay = `${r.artist} ${r.title}`.toLowerCase();
-            return hay.includes(needle);
+            return `${r.artist} ${r.title}`.toLowerCase().includes(needle);
         });
     }, [items, searchText]);
 
@@ -163,13 +184,13 @@ export default function MyLibraryPage() {
             <h1>My library</h1>
 
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <button onClick={() => setFilter("collection")} disabled={filter === "collection"}>
+                <button onClick={() => setFilter("collection")} disabled={filter === "collection"} className="btn btnGhost">
                     Collection
                 </button>
-                <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"}>
+                <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"} className="btn btnGhost">
                     Wishlist
                 </button>
-                <button onClick={() => setFilter("all")} disabled={filter === "all"}>
+                <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
                     All
                 </button>
 
@@ -179,17 +200,18 @@ export default function MyLibraryPage() {
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     placeholder="Filter by artist or title"
+                    className="input"
                     style={{ minWidth: 240 }}
                 />
             </div>
 
-            {loading ? <div style={{ marginTop: 12 }}>Loading…</div> : null}
-            {error ? <div style={{ marginTop: 12, color: "red" }}>{error}</div> : null}
+            {loading ? <div style={{ marginTop: 12 }} className="muted">Loading…</div> : null}
+            {error ? <div style={{ marginTop: 12 }} className="error">{error}</div> : null}
             {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
 
             <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
                 {filteredItems.map((ur) => {
-                    const r = ur.records?.[0];
+                    const r = ur.record;
                     if (!r) {
                         return null;
                     }
@@ -197,53 +219,44 @@ export default function MyLibraryPage() {
                     return (
                         <div
                             key={ur.id}
+                            className="panel"
                             style={{
+                                padding: 12,
                                 display: "flex",
                                 gap: 12,
-                                padding: 12,
-                                border: "1px solid #ddd",
-                                borderRadius: 6
+                                alignItems: "center"
                             }}
                         >
-                            <div style={{ width: 80, height: 80, background: "#f2f2f2", flexShrink: 0 }}>
+                            <div className="thumb" style={{ width: 80, height: 80 }}>
                                 {r.thumb_url ? (
-                                    <img
-                                        src={r.thumb_url}
-                                        alt={r.title}
-                                        style={{ width: 80, height: 80, objectFit: "cover" }}
-                                    />
+                                    <img className="thumbImg" src={r.thumb_url} alt={r.title} />
                                 ) : null}
                             </div>
 
-                            <div style={{ flex: 1 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                                    <div style={{ fontWeight: 700 }}>{r.title}</div>
-                                    <span
-                                        style={{
-                                            fontSize: 12,
-                                            padding: "2px 6px",
-                                            borderRadius: 4,
-                                            background: ur.list_type === "collection" ? "#d1fae5" : "#e0e7ff"
-                                        }}
-                                    >
-                                        {ur.list_type === "collection" ? "Collection" : "Wishlist"}
-                                    </span>
+                                    <div style={{ fontWeight: 800 }}>{r.title}</div>
+                                    <span className="muted small">{ur.list_type}</span>
                                 </div>
 
-                                <div style={{ opacity: 0.85 }}>{r.artist}</div>
-
-                                <div style={{ fontSize: 14, opacity: 0.7 }}>
-                                    {r.year ?? "?"} · {r.country ?? "?"}
+                                <div className="muted" style={{ marginTop: 4 }}>
+                                    {r.artist} · {r.year ?? "?"} · {r.country ?? "?"}
                                 </div>
 
-                                <div style={{ fontSize: 13, opacity: 0.7 }}>
+                                <div className="muted small" style={{ marginTop: 2 }}>
                                     {r.label ?? "?"}
                                     {r.catno ? ` · ${r.catno}` : ""}
                                 </div>
 
                                 <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
-                                    <Link to={`/release/${r.discogs_release_id}`}>Open</Link>
-                                    <button onClick={() => removeItem(ur)} disabled={busyId === ur.id}>
+                                    <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
+                                        Open
+                                    </Link>
+                                    <button
+                                        onClick={() => removeItem(ur)}
+                                        disabled={busyId === ur.id}
+                                        className="btn btnGhost"
+                                    >
                                         Remove
                                     </button>
                                 </div>
