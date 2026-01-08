@@ -18,7 +18,9 @@ export default function App() {
     const profile = useUserProfileSummary();
     const [authOpen, setAuthOpen] = useState<boolean>(false);
     const [menuOpen, setMenuOpen] = useState<boolean>(false);
+    const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
+    const installDismissedKey = "grooves:pwa_install_dismissed";
 
     async function signOut() {
         await supabase.auth.signOut();
@@ -60,6 +62,48 @@ export default function App() {
             document.removeEventListener("keydown", handleKey);
         };
     }, [menuOpen]);
+
+    useEffect(() => {
+        const dismissed = window.localStorage.getItem(installDismissedKey);
+        if (dismissed === "1") {
+            return;
+        }
+
+        function handleBeforeInstall(event: Event) {
+            event.preventDefault();
+            setInstallPrompt(event as BeforeInstallPromptEvent);
+        }
+
+        function handleInstalled() {
+            setInstallPrompt(null);
+            window.localStorage.setItem(installDismissedKey, "1");
+        }
+
+        window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+        window.addEventListener("appinstalled", handleInstalled);
+
+        return () => {
+            window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+            window.removeEventListener("appinstalled", handleInstalled);
+        };
+    }, []);
+
+    async function handleInstall() {
+        if (!installPrompt) {
+            return;
+        }
+        installPrompt.prompt();
+        const choice = await installPrompt.userChoice;
+        if (choice.outcome === "accepted") {
+            setInstallPrompt(null);
+            window.localStorage.setItem(installDismissedKey, "1");
+        }
+    }
+
+    function handleDismissInstall() {
+        setInstallPrompt(null);
+        window.localStorage.setItem(installDismissedKey, "1");
+    }
 
     return (
         <div style={{ maxWidth: 1080, margin: "0 auto", padding: 16 }}>
@@ -170,6 +214,25 @@ export default function App() {
                     )}
                 </div>
             </header>
+
+            {installPrompt ? (
+                <div className="installBanner">
+                    <div>
+                        <div style={{ fontWeight: 700 }}>Installer Grooves</div>
+                        <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                            Ajoute l'app sur ton ecran d'accueil pour l'utiliser hors-ligne.
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button className="btn btnPrimary" onClick={handleInstall}>
+                            Installer
+                        </button>
+                        <button className="btn btnGhost" onClick={handleDismissInstall}>
+                            Plus tard
+                        </button>
+                    </div>
+                </div>
+            ) : null}
 
             <Routes>
                 <Route path="/" element={<HomePage />} />
