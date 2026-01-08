@@ -5,12 +5,68 @@ import { supabase } from "../supabaseClient";
 
 export default function LoginPage() {
     const navigate = useNavigate();
-    const [mode, setMode] = useState<"signin" | "signup">("signup");
+    const [mode, setMode] = useState<"signin" | "signup">("signin");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [status, setStatus] = useState<string>("");
     const [statusType, setStatusType] = useState<"error" | "success" | "">("");
     const [loading, setLoading] = useState(false);
+
+    async function generateAnonUsername(): Promise<string> {
+        try {
+            const { count } = await supabase
+                .from("profiles")
+                .select("id", { count: "exact", head: true })
+                .ilike("username", "ano_%");
+            if (typeof count === "number") {
+                return `ano_${count + 1}`;
+            }
+        } catch {
+            // Fall back to timestamp-based ID if count fails.
+        }
+        return `ano_${Math.floor(Date.now() / 1000)}`;
+    }
+
+    async function ensureProfileUsername(userId: string): Promise<{ username: string; isAnon: boolean }> {
+        const { data: profileRow, error: profileError } = await supabase
+            .from("profiles")
+            .select("username")
+            .eq("id", userId)
+            .maybeSingle();
+
+        if (profileError) {
+            throw profileError;
+        }
+
+        if (profileRow?.username) {
+            return { username: profileRow.username, isAnon: profileRow.username.startsWith("ano_") };
+        }
+
+        let candidate = await generateAnonUsername();
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const { error: upsertError } = await supabase
+                .from("profiles")
+                .upsert(
+                    { id: userId, username: candidate, display_name: candidate },
+                    { onConflict: "id" }
+                );
+
+            if (!upsertError) {
+                return { username: candidate, isAnon: true };
+            }
+
+            if (upsertError.code === "23505" || upsertError.message.includes("duplicate")) {
+                const parts = candidate.split("_");
+                const suffix = Number(parts[1]) || 0;
+                candidate = `ano_${suffix + 1}`;
+                continue;
+            }
+
+            throw upsertError;
+        }
+
+        return { username: candidate, isAnon: true };
+    }
 
     async function signUp() {
         setStatus("");
@@ -33,16 +89,34 @@ export default function LoginPage() {
         setStatus("");
         setStatusType("");
         setLoading(true);
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-            setStatus(error.message);
-            setStatusType("error");
-        } else {
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                setStatus(error.message);
+                setStatusType("error");
+                return;
+            }
+
+            let session = data.session ?? null;
+            if (!session) {
+                const { data: sessionData } = await supabase.auth.getSession();
+                session = sessionData.session ?? null;
+            }
+            let hasProfile = false;
+            let isAnon = false;
+
+            if (session) {
+                const profile = await ensureProfileUsername(session.user.id);
+                hasProfile = !!profile.username;
+                isAnon = profile.isAnon;
+            }
+
             setStatus("Connexion réussie.");
             setStatusType("success");
-            navigate("/profile");
+            navigate(hasProfile && !isAnon ? "/" : "/profile");
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }
 
     function handleSubmit(event: FormEvent) {
@@ -66,23 +140,6 @@ export default function LoginPage() {
                     <p className="authSubtitle">
                         Crée un compte ou connecte-toi pour gérer ta collection et ta wishlist.
                     </p>
-                </div>
-
-                <div className="authSwitch">
-                    <button
-                        className={`btn ${mode === "signup" ? "btnPrimary" : "btnGhost"}`}
-                        type="button"
-                        onClick={() => setMode("signup")}
-                    >
-                        Créer un compte
-                    </button>
-                    <button
-                        className={`btn ${mode === "signin" ? "btnPrimary" : "btnGhost"}`}
-                        type="button"
-                        onClick={() => setMode("signin")}
-                    >
-                        Se connecter
-                    </button>
                 </div>
 
                 <form className="authForm" onSubmit={handleSubmit}>
@@ -120,6 +177,28 @@ export default function LoginPage() {
                         <div className={statusType === "error" ? "error" : "success"}>{status}</div>
                     ) : null}
                 </form>
+
+                <div style={{ marginTop: 12, textAlign: "center" }}>
+                    {mode === "signin" ? (
+                        <>
+                            <div className="muted" style={{ marginBottom: 8 }}>
+                                Pas encore de compte ?
+                            </div>
+                            <button className="btn btnGhost" type="button" onClick={() => setMode("signup")}>
+                                Créer un compte
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="muted" style={{ marginBottom: 8 }}>
+                                Déjà un compte ?
+                            </div>
+                            <button className="btn btnGhost" type="button" onClick={() => setMode("signin")}>
+                                Se connecter
+                            </button>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     );

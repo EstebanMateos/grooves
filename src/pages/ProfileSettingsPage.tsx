@@ -108,6 +108,7 @@ export default function ProfileSettingsPage() {
 
             setUsername(normalized);
             setStatus("Enregistré.");
+            navigate("/");
         } catch (e) {
             setError(String(e));
         } finally {
@@ -180,12 +181,13 @@ export default function ProfileSettingsPage() {
                 </label>
 
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <button onClick={save} disabled={loading} className="btn btnPrimary">
+                    <button type="button" onClick={save} disabled={loading} className="btn btnPrimary">
                         Enregistrer
                     </button>
 
                     {hasPublicProfile ? (
                         <button
+                            type="button"
                             onClick={() => navigate(`/u/${username}`)}
                             className="btn btnGhost"
                             disabled={loading}
@@ -194,7 +196,7 @@ export default function ProfileSettingsPage() {
                         </button>
                     ) : null}
 
-                    <button onClick={signOut} className="btn btnGhost" disabled={loading}>
+                    <button type="button" onClick={signOut} className="btn btnGhost" disabled={loading}>
                         Déconnexion
                     </button>
                 </div>

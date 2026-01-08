@@ -3,7 +3,6 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <HashRouter>
@@ -14,31 +13,39 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-        const baseUrl = import.meta.env.BASE_URL;
+        const base_url = import.meta.env.BASE_URL;
         navigator.serviceWorker
-            .register(`${baseUrl}sw.js`)
+            .register(`${base_url}sw.js`)
             .then((registration) => {
                 registration.update().catch(() => {});
+                let update_prompted = false;
 
-                function listenForWaiting(reg: ServiceWorkerRegistration) {
-                    if (reg.waiting) {
+                function promptForUpdate(reg: ServiceWorkerRegistration): void {
+                    if (update_prompted || !reg.waiting) {
+                        return;
+                    }
+                    update_prompted = true;
+                    const should_reload = window.confirm("Une nouvelle version est disponible. Recharger ?");
+                    if (should_reload) {
                         reg.waiting.postMessage({ type: "SKIP_WAITING" });
                     }
                 }
 
-                listenForWaiting(registration);
-
                 registration.addEventListener("updatefound", () => {
-                    const newWorker = registration.installing;
-                    if (!newWorker) {
+                    const new_worker = registration.installing;
+                    if (!new_worker) {
                         return;
                     }
-                    newWorker.addEventListener("statechange", () => {
-                        if (newWorker.state === "installed") {
-                            listenForWaiting(registration);
+                    new_worker.addEventListener("statechange", () => {
+                        if (new_worker.state === "installed") {
+                            promptForUpdate(registration);
                         }
                     });
                 });
+
+                if (registration.waiting) {
+                    promptForUpdate(registration);
+                }
 
                 let refreshing = false;
                 navigator.serviceWorker.addEventListener("controllerchange", () => {

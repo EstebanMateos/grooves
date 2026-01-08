@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { useUserProfileSummary } from "../hooks/useUserProfileSummary";
 
 type RecordRow = {
     id: string;
@@ -41,6 +42,7 @@ type DiscogsSearchResponse = {
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const profile = useUserProfileSummary();
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
     const [libraryLoading, setLibraryLoading] = useState<boolean>(false);
@@ -212,8 +214,24 @@ export default function HomePage() {
         return "Cherche des vinyles, prépare ta wishlist, garde ta collection à jour, et partage la avec tes amis.";
     }, [isAuthenticated]);
 
+    const showProfilePrompt =
+        isAuthenticated && !profile.loading && !!profile.username && profile.username.startsWith("ano_");
+
     return (
         <div className="page">
+            {showProfilePrompt ? (
+                <div className="panel" style={{ marginBottom: 16 }}>
+                    <div className="panelTitle">Choisis ton pseudo</div>
+                    <div className="muted" style={{ marginTop: 6 }}>
+                        Tu utilises encore un pseudo automatique. Personnalise le pour ton profil public.
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                        <button className="btn btnPrimary" onClick={() => navigate("/profile")}>
+                            Mettre à jour mon profil
+                        </button>
+                    </div>
+                </div>
+            ) : null}
             <section className="hero">
                 <div className="heroLeft">
                     <div className="badge">Grooves</div>
