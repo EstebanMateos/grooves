@@ -1,4 +1,4 @@
-const CACHE_NAME = "grooves-static-v2";
+const CACHE_NAME = "grooves-static-v3";
 const BASE_URL = self.registration.scope;
 const CORE_ASSETS = [
   BASE_URL,
@@ -35,6 +35,22 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  const isNavigation = request.mode === "navigate";
+  const isIndex = url.pathname.endsWith("/index.html");
+
+  if (isNavigation || isIndex) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 

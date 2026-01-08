@@ -19,36 +19,44 @@ export function useUserProfileSummary(): UserProfileSummary {
 
         async function load() {
             setState((prev) => ({ ...prev, loading: true }));
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
+            try {
+                const { data: sessionData } = await supabase.auth.getSession();
+                const session = sessionData.session;
 
-            if (!session) {
-                if (isMounted) {
-                    setState({ loading: false, username: null, display_name: null });
+                if (!session) {
+                    if (isMounted) {
+                        setState({ loading: false, username: null, display_name: null });
+                    }
+                    return;
                 }
-                return;
-            }
 
-            const { data, error } = await supabase
-                .from("profiles")
-                .select("username,display_name")
-                .eq("id", session.user.id)
-                .maybeSingle();
+                const { data, error } = await supabase
+                    .from("profiles")
+                    .select("username,display_name")
+                    .eq("id", session.user.id)
+                    .maybeSingle();
 
-            if (!isMounted) {
-                return;
-            }
+                if (!isMounted) {
+                    return;
+                }
 
-            if (error || !data) {
+                if (error || !data) {
+                    setState({ loading: false, username: null, display_name: null });
+                    return;
+                }
+
+                setState({
+                    loading: false,
+                    username: data.username ?? null,
+                    display_name: data.display_name ?? null
+                });
+            } catch (error) {
+                if (!isMounted) {
+                    return;
+                }
+                console.error("[useUserProfileSummary] load failed", error);
                 setState({ loading: false, username: null, display_name: null });
-                return;
             }
-
-            setState({
-                loading: false,
-                username: data.username ?? null,
-                display_name: data.display_name ?? null
-            });
         }
 
         load();

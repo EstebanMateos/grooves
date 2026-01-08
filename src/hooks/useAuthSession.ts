@@ -19,19 +19,32 @@ export function useAuthSession(): AuthSessionState {
     let is_mounted = true;
 
     async function load() {
-      const {data} = await supabase.auth.getSession();
-      const session = data.session;
+      try {
+        const {data} = await supabase.auth.getSession();
+        const session = data.session;
 
-      if (!is_mounted) {
-        return;
+        if (!is_mounted) {
+          return;
+        }
+
+        setState({
+          is_loading: false,
+          is_authenticated: !!session,
+          user_id: session?.user.id ?? null,
+          user_email: session?.user.email ?? null
+        });
+      } catch (error) {
+        if (!is_mounted) {
+          return;
+        }
+        console.error("[useAuthSession] getSession failed", error);
+        setState({
+          is_loading: false,
+          is_authenticated: false,
+          user_id: null,
+          user_email: null
+        });
       }
-
-      setState({
-        is_loading: false,
-        is_authenticated: !!session,
-        user_id: session?.user.id ?? null,
-        user_email: session?.user.email ?? null
-      });
     }
 
     load();

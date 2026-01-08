@@ -52,6 +52,12 @@ export function useUserLibraryIndex() {
       });
 
       setIndex({collection_ids, wishlist_ids});
+    } catch (error) {
+      console.error('[useUserLibraryIndex] reload failed', error);
+      setIndex({
+        collection_ids: new Set<number>(),
+        wishlist_ids: new Set<number>()
+      });
     } finally {
       setLoading(false);
     }

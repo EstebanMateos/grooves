@@ -60,8 +60,13 @@ export default function HomePage() {
 
     useEffect(() => {
         async function init() {
-            const { data } = await supabase.auth.getSession();
-            setIsAuthenticated(!!data.session);
+            try {
+                const { data } = await supabase.auth.getSession();
+                setIsAuthenticated(!!data.session);
+            } catch (error) {
+                console.error("[HomePage] getSession failed", error);
+                setIsAuthenticated(false);
+            }
         }
 
         init();
