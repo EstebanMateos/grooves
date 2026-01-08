@@ -94,10 +94,12 @@ a {
 
 .pillCollection {
     border-color: rgba(255, 194, 70, 0.28);
+    background: linear-gradient(135deg, rgba(28, 18, 10, 0.96), rgba(84, 44, 22, 0.78));
 }
 
 .pillWishlist {
     border-color: rgba(92, 220, 200, 0.28);
+    background: linear-gradient(135deg, rgba(8, 12, 22, 0.97), rgba(22, 30, 62, 0.82));
 }
 
 .heroTitle {
