@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
 import BackButton from "../components/BackButton";
@@ -368,7 +368,11 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
                 <div style={{ flex: 1 }}>
                     <h1 style={{ margin: 0 }}>{release.title}</h1>
-                    <div style={{ fontSize: 18, opacity: 0.85, marginTop: 6 }}>{artist}</div>
+                    <div style={{ fontSize: 18, opacity: 0.85, marginTop: 6 }}>
+                        <Link to={`/search?q=${encodeURIComponent(artist)}`} style={{ textDecoration: "none" }}>
+                            {artist}
+                        </Link>
+                    </div>
 
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                         {inCollection ? <span className="pill pillCollection">Dans la collection</span> : null}
