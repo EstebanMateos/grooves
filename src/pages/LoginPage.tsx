@@ -40,11 +40,7 @@ export default function LoginPage() {
         } else {
             setStatus("Connexion réussie.");
             setStatusType("success");
-            if (window.history.length > 1) {
-                navigate(-1);
-            } else {
-                navigate("/");
-            }
+            navigate("/profile");
         }
         setLoading(false);
     }
