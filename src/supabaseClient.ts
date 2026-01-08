@@ -20,7 +20,7 @@ function mergeSignals(
     signalA?: AbortSignal|null,
     signalB?: AbortSignal|null): AbortSignal|undefined {
   if (!signalA) {
-    return signalB;
+    return signalB ?? undefined;
   }
   if (!signalB) {
     return signalA;
