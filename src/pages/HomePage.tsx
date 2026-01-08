@@ -39,11 +39,7 @@ type DiscogsSearchResponse = {
     results?: DiscogsReleaseSearchItem[];
 };
 
-type Props = {
-    onRequireAuth: () => void;
-};
-
-export default function HomePage(props: Props) {
+export default function HomePage() {
     const navigate = useNavigate();
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 

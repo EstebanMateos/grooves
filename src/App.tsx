@@ -173,7 +173,7 @@ export default function App() {
             </header>
 
             <Routes>
-                <Route path="/" element={<HomePage onRequireAuth={() => setAuthOpen(true)} />} />
+                <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/people" element={<DiscoverProfilesPage />} />
                 <Route path="/my-library" element={<MyLibraryPage />} />
