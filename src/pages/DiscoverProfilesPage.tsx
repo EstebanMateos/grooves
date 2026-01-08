@@ -13,8 +13,12 @@ type PublicProfileRow = {
 
 type FavoriteRow = {
     favorite_user_id: string;
-    profile: PublicProfileRow[] | null;
+    profile: PublicProfileRow | PublicProfileRow[] | null;
 };
+
+const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_RETRIES = 2;
+const REQUEST_RETRY_DELAY_MS = 1000;
 
 export default function DiscoverProfilesPage() {
     const [query, setQuery] = useState<string>("");
@@ -31,6 +35,41 @@ export default function DiscoverProfilesPage() {
 
     const isSearching = query.trim().length > 0;
 
+    async function withTimeout<T>(promise: Promise<T>, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+        let timeoutId: number | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = window.setTimeout(() => {
+                reject(new Error("Impossible d'accéder à Supabase. Vérifie ta connexion et réessaie."));
+            }, timeoutMs);
+        });
+        try {
+            return await Promise.race([promise, timeoutPromise]);
+        } finally {
+            if (timeoutId) {
+                window.clearTimeout(timeoutId);
+            }
+        }
+    }
+
+    async function withRetry<T>(
+        factory: () => Promise<T>,
+        retries = REQUEST_RETRIES,
+        delayMs = REQUEST_RETRY_DELAY_MS
+    ): Promise<T> {
+        let lastError: unknown;
+        for (let attempt = 0; attempt <= retries; attempt += 1) {
+            try {
+                return await withTimeout(factory());
+            } catch (e) {
+                lastError = e;
+                if (attempt < retries) {
+                    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+                }
+            }
+        }
+        throw lastError instanceof Error ? lastError : new Error(String(lastError));
+    }
+
     async function search() {
         setLoading(true);
         setError("");
@@ -42,13 +81,15 @@ export default function DiscoverProfilesPage() {
                 return;
             }
 
-            const { data, error: dbError } = await supabase
-                .from("profiles")
-                .select("username,display_name,is_public_collection,is_public_wishlist")
-                .or("is_public_collection.eq.true,is_public_wishlist.eq.true")
-                .ilike("username", `%${q}%`)
-                .order("username", { ascending: true })
-                .limit(30);
+            const { data, error: dbError } = await withRetry(() =>
+                supabase
+                    .from("profiles")
+                    .select("username,display_name,is_public_collection,is_public_wishlist")
+                    .or("is_public_collection.eq.true,is_public_wishlist.eq.true")
+                    .ilike("username", `%${q}%`)
+                    .order("username", { ascending: true })
+                    .limit(30)
+            );
 
             if (dbError) {
                 throw dbError;
@@ -67,9 +108,11 @@ export default function DiscoverProfilesPage() {
         setError("");
 
         try {
-            const { data, error: dbError } = await supabase
-                .from("top_profiles_by_collection")
-                .select("username,display_name,is_public_collection,is_public_wishlist,collection_count");
+            const { data, error: dbError } = await withRetry(() =>
+                supabase
+                    .from("top_profiles_by_collection")
+                    .select("username,display_name,is_public_collection,is_public_wishlist,collection_count")
+            );
 
             if (dbError) {
                 throw dbError;
@@ -78,12 +121,14 @@ export default function DiscoverProfilesPage() {
             setDefaultRows((data ?? []) as PublicProfileRow[]);
         } catch (e) {
             try {
-                const { data, error: fallbackError } = await supabase
-                    .from("profiles")
-                    .select("username,display_name,is_public_collection,is_public_wishlist")
-                    .or("is_public_collection.eq.true,is_public_wishlist.eq.true")
-                    .order("username", { ascending: true })
-                    .limit(5);
+                const { data, error: fallbackError } = await withRetry(() =>
+                    supabase
+                        .from("profiles")
+                        .select("username,display_name,is_public_collection,is_public_wishlist")
+                        .or("is_public_collection.eq.true,is_public_wishlist.eq.true")
+                        .order("username", { ascending: true })
+                        .limit(5)
+                );
 
                 if (fallbackError) {
                     throw fallbackError;
@@ -109,38 +154,37 @@ export default function DiscoverProfilesPage() {
                 return;
             }
 
-            const { data, error: favError } = await supabase
-                .from("profile_favorites")
-                .select(
+            const { data, error: favError } = await withRetry(() =>
+                supabase
+                    .from("profile_favorites")
+                    .select(
+                        `
+                        favorite_user_id,
+                        profile:profiles!profile_favorites_favorite_user_id_fkey (
+                            username,
+                            display_name,
+                            is_public_collection,
+                            is_public_wishlist
+                        )
                     `
-                    favorite_user_id,
-                    profile:profiles!profile_favorites_favorite_user_id_fkey (
-                        username,
-                        display_name,
-                        is_public_collection,
-                        is_public_wishlist
                     )
-                `
-                )
-                .eq("user_id", session.user.id);
+                    .eq("user_id", session.user.id)
+            );
 
             if (favError) {
                 throw favError;
             }
 
             const favRows = (data ?? []) as unknown as FavoriteRow[];
-            const favList = favRows
-                .map((r) => r.profile?.[0]?.username)
-                .filter((x): x is string => !!x);
-            setFavorites(favList);
-            setFavoriteRows(
-                favRows
-                    .map((r) => r.profile?.[0])
-                    .filter((x): x is PublicProfileRow => !!x && (x.is_public_collection || x.is_public_wishlist))
-            );
+            const favProfiles = favRows
+                .map((r) => (Array.isArray(r.profile) ? r.profile[0] : r.profile))
+                .filter((x): x is PublicProfileRow => !!x);
+            setFavorites(favProfiles.map((p) => p.username).filter((x) => !!x));
+            setFavoriteRows(favProfiles.filter((x) => x.is_public_collection || x.is_public_wishlist));
         } catch (e) {
             setFavorites([]);
             setFavoriteRows([]);
+            setError(String(e));
         } finally {
             setFavoritesLoading(false);
         }
@@ -164,11 +208,13 @@ export default function DiscoverProfilesPage() {
         setFavorites(optimistic);
         setFavoriteBusy(username);
 
-        const { data: profileRow, error: profileError } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("username", username)
-            .maybeSingle();
+            const { data: profileRow, error: profileError } = await withRetry(() =>
+                supabase
+                    .from("profiles")
+                    .select("id")
+                    .eq("username", username)
+                    .maybeSingle()
+            );
 
         if (profileError || !profileRow?.id) {
             setFavorites(favorites);
@@ -178,19 +224,26 @@ export default function DiscoverProfilesPage() {
         }
 
         if (wasFavorite) {
-            const { error: delError } = await supabase
-                .from("profile_favorites")
-                .delete()
-                .eq("user_id", session.user.id)
-                .eq("favorite_user_id", profileRow.id);
+            const { error: delError } = await withRetry(() =>
+                supabase
+                    .from("profile_favorites")
+                    .delete()
+                    .eq("user_id", session.user.id)
+                    .eq("favorite_user_id", profileRow.id)
+            );
             if (delError) {
                 setFavorites(favorites);
                 setFavoriteStatus(delError.message);
             }
         } else {
-            const { error: insError } = await supabase
-                .from("profile_favorites")
-                .insert({ user_id: session.user.id, favorite_user_id: profileRow.id });
+            const { error: insError } = await withRetry(() =>
+                supabase
+                    .from("profile_favorites")
+                    .upsert(
+                        { user_id: session.user.id, favorite_user_id: profileRow.id },
+                        { onConflict: "user_id,favorite_user_id", ignoreDuplicates: true }
+                    )
+            );
             if (insError) {
                 setFavorites(favorites);
                 setFavoriteStatus(insError.message);

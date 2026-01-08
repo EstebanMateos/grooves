@@ -56,8 +56,9 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                 setStatusType("error");
                 return;
             }
-            setStatus("Compte créé. Vérifie ton email si une confirmation est demandée.");
+            setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
             setStatusType("success");
+            setMode("signin");
         } finally {
             setLoading(false);
         }

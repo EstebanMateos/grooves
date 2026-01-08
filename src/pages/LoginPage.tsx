@@ -21,9 +21,10 @@ export default function LoginPage() {
             setStatus(error.message);
             setStatusType("error");
         } else {
-            setStatus("Compte créé. Vérifie ton email si une confirmation est demandée.");
+            setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
             setStatusType("success");
-            navigate("/profile");
+            setMode("signin");
+            navigate("/login");
         }
         setLoading(false);
     }
