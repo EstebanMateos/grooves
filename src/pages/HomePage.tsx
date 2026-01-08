@@ -221,9 +221,9 @@ export default function HomePage(props: Props) {
 
                     {!isAuthenticated ? (
                         <div className="heroCtas">
-                            <button className="btn btnPrimary" onClick={props.onRequireAuth}>
+                            <Link className="btn btnPrimary" to="/login">
                                 Se connecter
-                            </button>
+                            </Link>
                             <Link className="btn btnGhost" to="/people">
                                 Découvrir des profils
                             </Link>
@@ -308,36 +308,17 @@ export default function HomePage(props: Props) {
                 </div>
             </section>
 
-            <section className="section">
-                <div className="sectionHeader">
-                    <h2 className="sectionTitle">Ta bibliothèque</h2>
-                    <div className="sectionRight">
-                        {isAuthenticated ? (
+            {isAuthenticated ? (
+                <section className="section">
+                    <div className="sectionHeader">
+                        <h2 className="sectionTitle">Ta bibliothèque</h2>
+                        <div className="sectionRight">
                             <Link className="btn btnGhost" to="/my-library">
                                 Voir tout
                             </Link>
-                        ) : null}
-                    </div>
-                </div>
-
-                {!isAuthenticated ? (
-                    <div className="panel">
-                        <div className="panelTitle">Bienvenue sur Grooves</div>
-                        <p className="muted" style={{ marginTop: 10, lineHeight: 1.6 }}>
-                            Grooves te permet de retrouver facilement des vinyles, puis de les classer en deux listes:
-                            ta collection et ta wishlist. Ensuite tu peux partager un lien public pour que les autres
-                            voient ce que tu as déjà, et ce que tu recherches.
-                        </p>
-                        <div className="heroCtas" style={{ marginTop: 14 }}>
-                            <button className="btn btnPrimary" onClick={props.onRequireAuth}>
-                                Se connecter pour commencer
-                            </button>
-                            <Link className="btn btnGhost" to="/people">
-                                Découvrir des profils
-                            </Link>
                         </div>
                     </div>
-                ) : (
+
                     <>
                         {libraryLoading ? <div className="muted">Chargement…</div> : null}
                         {libraryError ? <div className="error">{libraryError}</div> : null}
@@ -406,8 +387,8 @@ export default function HomePage(props: Props) {
                             </div>
                         </div>
                     </>
-                )}
-            </section>
+                </section>
+            ) : null}
 
             <footer className="footer">
                 <div className="muted small">Données Discogs via proxy, stockage et auth via Supabase.</div>

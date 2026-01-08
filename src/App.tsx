@@ -164,9 +164,9 @@ export default function App() {
                     ) : (
                         <>
                             <span style={{ opacity: 0.8, fontSize: 14 }}>Not logged in</span>
-                            <button className="btn btnPrimary" onClick={() => setAuthOpen(true)}>
+                            <Link to="/login" className="btn btnPrimary">
                                 Login
-                            </button>
+                            </Link>
                         </>
                     )}
                 </div>

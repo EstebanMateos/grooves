@@ -176,6 +176,8 @@ export default function MyLibraryPage() {
         });
     }, [items, searchText]);
 
+    const needsLogin = error === "Please login first.";
+
     return (
         <div>
             <div style={{ marginBottom: 12 }}>
@@ -184,6 +186,21 @@ export default function MyLibraryPage() {
 
             <h1>My library</h1>
 
+            {needsLogin ? (
+                <div className="panel" style={{ marginTop: 16, maxWidth: 520 }}>
+                    <div className="panelTitle">Connexion requise</div>
+                    <div className="muted" style={{ marginTop: 8 }}>
+                        Connecte-toi pour voir et gérer ta bibliothèque.
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                        <Link className="btn btnPrimary" to="/login">
+                            Aller à la connexion
+                        </Link>
+                    </div>
+                </div>
+            ) : null}
+
+            {needsLogin ? null : (
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
                     All
@@ -205,67 +222,70 @@ export default function MyLibraryPage() {
                     style={{ minWidth: 240 }}
                 />
             </div>
+            )}
 
             {loading ? <div style={{ marginTop: 12 }} className="muted">Loading…</div> : null}
-            {error ? <div style={{ marginTop: 12 }} className="error">{error}</div> : null}
+            {error && !needsLogin ? <div style={{ marginTop: 12 }} className="error">{error}</div> : null}
             {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
 
-            <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-                {filteredItems.map((ur) => {
-                    const r = ur.record;
-                    if (!r) {
-                        return null;
-                    }
+            {needsLogin ? null : (
+                <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+                    {filteredItems.map((ur) => {
+                        const r = ur.record;
+                        if (!r) {
+                            return null;
+                        }
 
-                    return (
-                        <div
-                            key={ur.id}
-                            className="panel"
-                            style={{
-                                padding: 12,
-                                display: "flex",
-                                gap: 12,
-                                alignItems: "center"
-                            }}
-                        >
-                            <div className="thumb" style={{ width: 80, height: 80 }}>
-                                {r.thumb_url ? (
-                                    <img className="thumbImg" src={r.thumb_url} alt={r.title} />
-                                ) : null}
+                        return (
+                            <div
+                                key={ur.id}
+                                className="panel"
+                                style={{
+                                    padding: 12,
+                                    display: "flex",
+                                    gap: 12,
+                                    alignItems: "center"
+                                }}
+                            >
+                                <div className="thumb" style={{ width: 80, height: 80 }}>
+                                    {r.thumb_url ? (
+                                        <img className="thumbImg" src={r.thumb_url} alt={r.title} />
+                                    ) : null}
+                                </div>
+
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                                        <div style={{ fontWeight: 800 }}>{r.title}</div>
+                                        <span className="muted small">{ur.list_type}</span>
+                                    </div>
+
+                                    <div className="muted" style={{ marginTop: 4 }}>
+                                        {r.artist} · {r.year ?? "?"} · {r.country ?? "?"}
+                                    </div>
+
+                                    <div className="muted small" style={{ marginTop: 2 }}>
+                                        {r.label ?? "?"}
+                                        {r.catno ? ` · ${r.catno}` : ""}
+                                    </div>
+
+                                    <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                                        <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
+                                            Open
+                                        </Link>
+                                        <button
+                                            onClick={() => removeItem(ur)}
+                                            disabled={busyId === ur.id}
+                                            className="btn btnGhost"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                                    <div style={{ fontWeight: 800 }}>{r.title}</div>
-                                    <span className="muted small">{ur.list_type}</span>
-                                </div>
-
-                                <div className="muted" style={{ marginTop: 4 }}>
-                                    {r.artist} · {r.year ?? "?"} · {r.country ?? "?"}
-                                </div>
-
-                                <div className="muted small" style={{ marginTop: 2 }}>
-                                    {r.label ?? "?"}
-                                    {r.catno ? ` · ${r.catno}` : ""}
-                                </div>
-
-                                <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
-                                    <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
-                                        Open
-                                    </Link>
-                                    <button
-                                        onClick={() => removeItem(ur)}
-                                        disabled={busyId === ur.id}
-                                        className="btn btnGhost"
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

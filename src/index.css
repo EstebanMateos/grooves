@@ -221,6 +221,10 @@ a {
     color: rgba(255, 120, 120, 0.95);
 }
 
+.success {
+    color: rgba(160, 255, 170, 0.95);
+}
+
 .grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -299,4 +303,75 @@ a {
 .footer {
     margin: 22px 0 10px;
     opacity: 0.85;
+}
+
+.authPage {
+    min-height: calc(100vh - 120px);
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.authCard {
+    width: min(520px, 100%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--stroke);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 22px;
+    display: grid;
+    gap: 18px;
+}
+
+.authHeader {
+    display: grid;
+    gap: 10px;
+}
+
+.authTitle {
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: -0.4px;
+}
+
+.authSubtitle {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.authSwitch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.authForm {
+    display: grid;
+    gap: 12px;
+}
+
+.authField {
+    display: grid;
+    gap: 6px;
+}
+
+.authLabel {
+    font-size: 13px;
+    color: var(--muted2);
+}
+
+.authModalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 8, 14, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 40;
+}
+
+.authModalCard {
+    width: min(520px, 100%);
 }
