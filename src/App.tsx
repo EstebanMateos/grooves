@@ -20,6 +20,7 @@ export default function App() {
     const [menuOpen, setMenuOpen] = useState<boolean>(false);
     const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
+    const installDismissedRef = useRef<boolean>(false);
     const installDismissedKey = "grooves:pwa_install_dismissed";
 
     async function signOut() {
@@ -64,19 +65,32 @@ export default function App() {
     }, [menuOpen]);
 
     useEffect(() => {
-        const dismissed = window.localStorage.getItem(installDismissedKey);
-        if (dismissed === "1") {
-            return;
+        try {
+            const dismissed = window.localStorage.getItem(installDismissedKey);
+            if (dismissed === "1") {
+                installDismissedRef.current = true;
+                return;
+            }
+        } catch {
+            // Storage blocked; keep session-only dismissal.
         }
 
         function handleBeforeInstall(event: Event) {
+            if (installDismissedRef.current) {
+                return;
+            }
             event.preventDefault();
             setInstallPrompt(event as BeforeInstallPromptEvent);
         }
 
         function handleInstalled() {
             setInstallPrompt(null);
-            window.localStorage.setItem(installDismissedKey, "1");
+            installDismissedRef.current = true;
+            try {
+                window.localStorage.setItem(installDismissedKey, "1");
+            } catch {
+                return;
+            }
         }
 
         window.addEventListener("beforeinstallprompt", handleBeforeInstall);
@@ -96,13 +110,23 @@ export default function App() {
         const choice = await installPrompt.userChoice;
         if (choice.outcome === "accepted") {
             setInstallPrompt(null);
-            window.localStorage.setItem(installDismissedKey, "1");
+            installDismissedRef.current = true;
+            try {
+                window.localStorage.setItem(installDismissedKey, "1");
+            } catch {
+                return;
+            }
         }
     }
 
     function handleDismissInstall() {
         setInstallPrompt(null);
-        window.localStorage.setItem(installDismissedKey, "1");
+        installDismissedRef.current = true;
+        try {
+            window.localStorage.setItem(installDismissedKey, "1");
+        } catch {
+            return;
+        }
     }
 
     return (

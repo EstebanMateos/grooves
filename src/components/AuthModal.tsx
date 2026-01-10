@@ -16,6 +16,18 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
     const [statusType, setStatusType] = useState<"error" | "success" | "">("");
     const [loading, setLoading] = useState<boolean>(false);
 
+    function formatAuthError(error: unknown): string {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message) {
+            return "Erreur inconnue.";
+        }
+        const normalized = message.toLowerCase();
+        if (normalized.includes("timeout") || normalized.includes("expirée")) {
+            return "Délai dépassé. Vérifie ta connexion et réessaie.";
+        }
+        return message;
+    }
+
     useEffect(() => {
         if (open) {
             setStatus("");
@@ -39,6 +51,9 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
             setStatusType("success");
             onAuthed();
             onClose();
+        } catch (error) {
+            setStatus(formatAuthError(error));
+            setStatusType("error");
         } finally {
             setLoading(false);
         }
@@ -59,6 +74,9 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
             setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
             setStatusType("success");
             setMode("signin");
+        } catch (error) {
+            setStatus(formatAuthError(error));
+            setStatusType("error");
         } finally {
             setLoading(false);
         }

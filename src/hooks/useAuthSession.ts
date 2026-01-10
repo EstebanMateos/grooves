@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 
 import {supabase} from '../supabaseClient';
 
@@ -14,11 +14,17 @@ export function useAuthSession(): AuthSessionState {
     user_id: null,
     user_email: null
   });
+  const authSeqRef = useRef<number>(0);
 
   useEffect(() => {
     let is_mounted = true;
+    const bumpAuthSeq = () => {
+      authSeqRef.current += 1;
+      return authSeqRef.current;
+    };
 
     async function load() {
+      const seq = bumpAuthSeq();
       try {
         const {data, error} = await supabase.auth.getSession();
         if (error) {
@@ -26,7 +32,7 @@ export function useAuthSession(): AuthSessionState {
         }
         const session = data.session;
 
-        if (!is_mounted) {
+        if (!is_mounted || authSeqRef.current !== seq) {
           return;
         }
 
@@ -37,7 +43,7 @@ export function useAuthSession(): AuthSessionState {
           user_email: session?.user.email ?? null
         });
       } catch (error) {
-        if (!is_mounted) {
+        if (!is_mounted || authSeqRef.current !== seq) {
           return;
         }
         console.error('[useAuthSession] getSession failed', error);
@@ -53,8 +59,9 @@ export function useAuthSession(): AuthSessionState {
     load();
 
     const {data: sub} = supabase.auth.onAuthStateChange((event, session) => {
+      const seq = bumpAuthSeq();
       console.log(`Supabase auth event: ${event}`);
-      if (!is_mounted) {
+      if (!is_mounted || authSeqRef.current !== seq) {
         return;
       }
       setState({
@@ -78,6 +85,18 @@ export function useAuthSession(): AuthSessionState {
     }
 
     let isMounted = true;
+    let warned = false;
+    const warnOnce = (message: string, error?: unknown) => {
+      if (warned) {
+        return;
+      }
+      warned = true;
+      if (error) {
+        console.warn(message, error);
+        return;
+      }
+      console.warn(message);
+    };
     const applySignedOut = () => {
       if (!isMounted) {
         return;
@@ -103,34 +122,51 @@ export function useAuthSession(): AuthSessionState {
         return;
       }
       if (!event.newValue) {
-        console.warn('[useAuthSession] Supabase session storage missing.');
+        warnOnce('[useAuthSession] Supabase session storage missing.');
         applySignedOut();
       }
     };
 
+    let lastValue: string | null = null;
+    let handle: number | null = null;
+    const stopMonitoring = () => {
+      if (handle !== null) {
+        window.clearInterval(handle);
+        handle = null;
+      }
+      window.removeEventListener('storage', handleStorage);
+    };
+
+    try {
+      window.localStorage.getItem(storageKey);
+    } catch (error) {
+      warnOnce('[useAuthSession] Storage unavailable; skipping storage sync.', error);
+      return () => {
+        isMounted = false;
+      };
+    }
+
     window.addEventListener('storage', handleStorage);
 
-    let lastValue: string | null = null;
-    const handle = window.setInterval(() => {
+    handle = window.setInterval(() => {
       try {
         const current = window.localStorage.getItem(storageKey);
         if (current !== lastValue) {
           lastValue = current;
           if (!current) {
-            console.warn('[useAuthSession] Supabase session storage missing.');
+            warnOnce('[useAuthSession] Supabase session storage missing.');
             applySignedOut();
           }
         }
       } catch (error) {
-        console.warn('[useAuthSession] Unable to read Supabase storage.', error);
-        applySignedOut();
+        warnOnce('[useAuthSession] Unable to read Supabase storage.', error);
+        stopMonitoring();
       }
     }, 5000);
 
     return () => {
       isMounted = false;
-      window.removeEventListener('storage', handleStorage);
-      window.clearInterval(handle);
+      stopMonitoring();
     };
   }, []);
 

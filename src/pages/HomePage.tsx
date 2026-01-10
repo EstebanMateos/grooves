@@ -61,15 +61,29 @@ export default function HomePage() {
     const [itemsTotal, setItemsTotal] = useState<number>(0);
     const libraryLoadSeqRef = useRef<number>(0);
     const authUserIdRef = useRef<string | null>(null);
+    const authSeqRef = useRef<number>(0);
     const searchLoadSeqRef = useRef<number>(0);
 
     useEffect(() => {
+        let isMounted = true;
+        const bumpAuthSeq = () => {
+            authSeqRef.current += 1;
+            return authSeqRef.current;
+        };
+
         async function init() {
+            const seq = bumpAuthSeq();
             try {
                 const { data } = await supabase.auth.getSession();
+                if (!isMounted || authSeqRef.current !== seq) {
+                    return;
+                }
                 authUserIdRef.current = data.session?.user.id ?? null;
                 setIsAuthenticated(!!data.session);
             } catch (error) {
+                if (!isMounted || authSeqRef.current !== seq) {
+                    return;
+                }
                 console.error("[HomePage] getSession failed", error);
                 authUserIdRef.current = null;
                 setIsAuthenticated(false);
@@ -81,11 +95,18 @@ export default function HomePage() {
         const {
             data: { subscription }
         } = supabase.auth.onAuthStateChange((_event, session) => {
+            const seq = bumpAuthSeq();
+            if (!isMounted || authSeqRef.current !== seq) {
+                return;
+            }
             authUserIdRef.current = session?.user.id ?? null;
             setIsAuthenticated(!!session);
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            isMounted = false;
+            subscription.unsubscribe();
+        };
     }, []);
 
     async function loadLibraryPreview() {

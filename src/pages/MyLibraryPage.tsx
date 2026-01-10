@@ -51,6 +51,7 @@ export default function MyLibraryPage() {
     const [authUserId, setAuthUserId] = useState<string | null>(null);
     const [authReady, setAuthReady] = useState<boolean>(false);
     const activeUserIdRef = useRef<string | null>(null);
+    const authSeqRef = useRef<number>(0);
     const loadSeqRef = useRef<number>(0);
 
     function readCache(userId: string): CachedLibrary | null {
@@ -124,6 +125,7 @@ export default function MyLibraryPage() {
                     return;
                 }
                 setItems([]);
+                writeCache(userId, []);
                 return;
             }
 
@@ -179,11 +181,16 @@ export default function MyLibraryPage() {
 
     useEffect(() => {
         let isMounted = true;
+        const bumpAuthSeq = () => {
+            authSeqRef.current += 1;
+            return authSeqRef.current;
+        };
 
         async function initAuth() {
+            const seq = bumpAuthSeq();
             try {
                 const { data, error: sessionError } = await supabase.auth.getSession();
-                if (!isMounted) {
+                if (!isMounted || authSeqRef.current !== seq) {
                     return;
                 }
                 if (sessionError) {
@@ -197,7 +204,7 @@ export default function MyLibraryPage() {
                     resetLibraryState();
                 }
             } catch (error) {
-                if (!isMounted) {
+                if (!isMounted || authSeqRef.current !== seq) {
                     return;
                 }
                 console.error("[MyLibraryPage] getSession failed", error);
@@ -211,6 +218,10 @@ export default function MyLibraryPage() {
         initAuth();
 
         const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+            const seq = bumpAuthSeq();
+            if (!isMounted || authSeqRef.current !== seq) {
+                return;
+            }
             const prevUserId = activeUserIdRef.current;
             const userId = session?.user.id ?? null;
             activeUserIdRef.current = userId;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import BackButton from "../components/BackButton";
@@ -29,8 +29,13 @@ export default function PublicProfilePage() {
     const [rows, setRows] = useState<PublicLibraryRow[]>([]);
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
+    const loadSeqRef = useRef<number>(0);
 
     useEffect(() => {
+        const seq = loadSeqRef.current + 1;
+        loadSeqRef.current = seq;
+        const isStale = () => loadSeqRef.current !== seq;
+
         async function load() {
             setLoading(true);
             setError("");
@@ -41,6 +46,9 @@ export default function PublicProfilePage() {
             try {
                 const u = (username ?? "").trim().toLowerCase();
                 if (!u) {
+                    if (isStale()) {
+                        return;
+                    }
                     setNotFound(true);
                     return;
                 }
@@ -56,11 +64,17 @@ export default function PublicProfilePage() {
                 }
 
                 if (!profile) {
+                    if (isStale()) {
+                        return;
+                    }
                     setNotFound(true);
                     return;
                 }
 
                 if (!profile.is_public_collection && !profile.is_public_wishlist) {
+                    if (isStale()) {
+                        return;
+                    }
                     setIsPrivate(true);
                     return;
                 }
@@ -70,15 +84,26 @@ export default function PublicProfilePage() {
                     throw rpcError;
                 }
 
+                if (isStale()) {
+                    return;
+                }
                 setRows((data ?? []) as PublicLibraryRow[]);
             } catch (e) {
+                if (isStale()) {
+                    return;
+                }
                 setError(String(e));
             } finally {
-                setLoading(false);
+                if (!isStale()) {
+                    setLoading(false);
+                }
             }
         }
 
         load();
+        return () => {
+            loadSeqRef.current += 1;
+        };
     }, [username]);
 
     const filtered = useMemo(() => {

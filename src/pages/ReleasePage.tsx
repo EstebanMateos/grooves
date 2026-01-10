@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
@@ -58,11 +58,17 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     const [release, setRelease] = useState<DiscogsRelease | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
+    const loadSeqRef = useRef<number>(0);
 
     const [actionStatus, setActionStatus] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
 
     useEffect(() => {
+        const controller = new AbortController();
+        const seq = loadSeqRef.current + 1;
+        loadSeqRef.current = seq;
+        const isStale = () => loadSeqRef.current !== seq;
+
         async function load() {
             if (!discogsReleaseId) {
                 return;
@@ -74,20 +80,34 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
             try {
                 const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
-                const resp = await fetch(`${baseUrl}/release/${encodeURIComponent(discogsReleaseId)}`);
+                const resp = await fetch(`${baseUrl}/release/${encodeURIComponent(discogsReleaseId)}`, {
+                    signal: controller.signal
+                });
                 if (!resp.ok) {
                     throw new Error(`HTTP ${resp.status}`);
                 }
                 const json = (await resp.json()) as DiscogsRelease;
+                if (isStale()) {
+                    return;
+                }
                 setRelease(json);
             } catch (e) {
+                if (controller.signal.aborted || isStale()) {
+                    return;
+                }
                 setError(String(e));
             } finally {
-                setLoading(false);
+                if (!isStale()) {
+                    setLoading(false);
+                }
             }
         }
 
         load();
+        return () => {
+            controller.abort();
+            loadSeqRef.current += 1;
+        };
     }, [discogsReleaseId]);
 
     async function requireSession(): Promise<{ user_id: string } | null> {

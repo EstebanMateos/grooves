@@ -92,6 +92,12 @@ async function fetchWithRetry(
       return response;
     } catch (error) {
       lastError = error;
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+      }
+      if (init?.signal?.aborted) {
+        throw error;
+      }
 
       if (canRetry && attempt < maxRetries && isNetworkError(error)) {
         await delay(FETCH_RETRY_DELAY_MS);
