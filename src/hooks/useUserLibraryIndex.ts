@@ -11,17 +11,48 @@ export function useUserLibraryIndex() {
       {collection_ids: new Set<number>(), wishlist_ids: new Set<number>()});
 
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
   const requestIdRef = useRef<number>(0);
+
+  function isAuthSessionMissing(err: unknown): boolean {
+    if (err && typeof err === 'object' && 'name' in err) {
+      if ((err as {name?: string}).name === 'AuthSessionMissingError') {
+        return true;
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return message.toLowerCase().includes('auth session missing');
+  }
+
+  async function getSessionOrRefresh() {
+    const {data, error: sessionError} = await supabase.auth.getSession();
+    if (sessionError) {
+      throw sessionError;
+    }
+    if (data.session) {
+      return data.session;
+    }
+
+    const {data: refreshData, error: refreshError} =
+        await supabase.auth.refreshSession();
+    if (refreshError) {
+      if (isAuthSessionMissing(refreshError)) {
+        return null;
+      }
+      throw refreshError;
+    }
+    return refreshData.session ?? null;
+  }
 
   async function reload() {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     const isStale = () => requestIdRef.current !== requestId;
     setLoading(true);
+    setError('');
 
     try {
-      const {data: sessionData} = await supabase.auth.getSession();
-      const session = sessionData.session;
+      const session = await getSessionOrRefresh();
 
       if (!session) {
         if (isStale()) {
@@ -31,6 +62,7 @@ export function useUserLibraryIndex() {
           collection_ids: new Set<number>(),
           wishlist_ids: new Set<number>()
         });
+        setError('');
         return;
       }
 
@@ -63,15 +95,13 @@ export function useUserLibraryIndex() {
       }
 
       setIndex({collection_ids, wishlist_ids});
+      setError('');
     } catch (error) {
       if (isStale()) {
         return;
       }
       console.error('[useUserLibraryIndex] reload failed', error);
-      setIndex({
-        collection_ids: new Set<number>(),
-        wishlist_ids: new Set<number>()
-      });
+      setError(String(error));
     } finally {
       if (!isStale()) {
         setLoading(false);
@@ -87,5 +117,5 @@ export function useUserLibraryIndex() {
     };
   }, []);
 
-  return {...index, loading, reload};
+  return {...index, loading, error, reload};
 }

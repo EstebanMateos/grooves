@@ -63,6 +63,16 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     const [actionStatus, setActionStatus] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
 
+    function isAuthSessionMissing(err: unknown): boolean {
+        if (err && typeof err === "object" && "name" in err) {
+            if ((err as { name?: string }).name === "AuthSessionMissingError") {
+                return true;
+            }
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        return message.toLowerCase().includes("auth session missing");
+    }
+
     useEffect(() => {
         const controller = new AbortController();
         const seq = loadSeqRef.current + 1;
@@ -111,8 +121,24 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     }, [discogsReleaseId]);
 
     async function requireSession(): Promise<{ user_id: string } | null> {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const session = sessionData.session;
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+            setActionStatus(String(sessionError));
+            return null;
+        }
+        let session = data.session ?? null;
+        if (!session) {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+                if (isAuthSessionMissing(refreshError)) {
+                    onRequireAuth();
+                    return null;
+                }
+                setActionStatus(String(refreshError));
+                return null;
+            }
+            session = refreshData.session ?? null;
+        }
         if (!session) {
             onRequireAuth();
             return null;
@@ -370,6 +396,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
     const inCollection = library.collection_ids.has(release.id);
     const inWishlist = !inCollection && library.wishlist_ids.has(release.id);
+    const actionDisabled = actionLoading || library.loading || !!library.error;
 
     return (
         <div>
@@ -409,10 +436,10 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                     <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {!inCollection && !inWishlist ? (
                             <>
-                                <button onClick={() => addToList("wishlist")} disabled={actionLoading}>
+                                <button onClick={() => addToList("wishlist")} disabled={actionDisabled}>
                                     Ajouter à la wishlist
                                 </button>
-                                <button onClick={() => addToList("collection")} disabled={actionLoading}>
+                                <button onClick={() => addToList("collection")} disabled={actionDisabled}>
                                     Ajouter à la collection
                                 </button>
                             </>
@@ -420,22 +447,27 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
                         {inWishlist ? (
                             <>
-                                <button onClick={moveWishlistToCollection} disabled={actionLoading}>
+                                <button onClick={moveWishlistToCollection} disabled={actionDisabled}>
                                     Déplacer vers la collection
                                 </button>
-                                <button onClick={() => removeFromList("wishlist")} disabled={actionLoading}>
+                                <button onClick={() => removeFromList("wishlist")} disabled={actionDisabled}>
                                     Retirer de la wishlist
                                 </button>
                             </>
                         ) : null}
 
                         {inCollection ? (
-                            <button onClick={() => removeFromList("collection")} disabled={actionLoading}>
+                            <button onClick={() => removeFromList("collection")} disabled={actionDisabled}>
                                 Retirer de la collection
                             </button>
                         ) : null}
                     </div>
 
+                    {library.error ? (
+                        <div style={{ marginTop: 8 }} className="error">
+                            Connexion Supabase indisponible. Réessaie.
+                        </div>
+                    ) : null}
                     {actionStatus ? <div style={{ marginTop: 8, fontSize: 14 }}>{actionStatus}</div> : null}
                 </div>
             </div>

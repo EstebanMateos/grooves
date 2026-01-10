@@ -54,6 +54,35 @@ export default function MyLibraryPage() {
     const authSeqRef = useRef<number>(0);
     const loadSeqRef = useRef<number>(0);
 
+    function isAuthSessionMissing(err: unknown): boolean {
+        if (err && typeof err === "object" && "name" in err) {
+            if ((err as { name?: string }).name === "AuthSessionMissingError") {
+                return true;
+            }
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        return message.toLowerCase().includes("auth session missing");
+    }
+
+    async function getSessionOrRefresh() {
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+            throw sessionError;
+        }
+        if (data.session) {
+            return data.session;
+        }
+
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+            if (isAuthSessionMissing(refreshError)) {
+                return null;
+            }
+            throw refreshError;
+        }
+        return refreshData.session ?? null;
+    }
+
     function readCache(userId: string): CachedLibrary | null {
         try {
             const raw = window.localStorage.getItem(`${LIBRARY_CACHE_PREFIX}${userId}`);
@@ -189,14 +218,11 @@ export default function MyLibraryPage() {
         async function initAuth() {
             const seq = bumpAuthSeq();
             try {
-                const { data, error: sessionError } = await supabase.auth.getSession();
+                const session = await getSessionOrRefresh();
                 if (!isMounted || authSeqRef.current !== seq) {
                     return;
                 }
-                if (sessionError) {
-                    console.error("[MyLibraryPage] getSession failed", sessionError);
-                }
-                const userId = data.session?.user.id ?? null;
+                const userId = session?.user.id ?? null;
                 activeUserIdRef.current = userId;
                 setAuthUserId(userId);
                 setAuthReady(true);
@@ -251,8 +277,7 @@ export default function MyLibraryPage() {
         setBusyId(userRecord.id);
 
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
+            const session = await getSessionOrRefresh();
 
             if (!session) {
                 setError("Merci de te connecter.");
@@ -282,9 +307,7 @@ export default function MyLibraryPage() {
 
             setItems((prev) => {
                 const next = prev.filter((x) => x.id !== userRecord.id);
-                if (session) {
-                    writeCache(session.user.id, next);
-                }
+                writeCache(session.user.id, next);
                 return next;
             });
             await library.reload();
