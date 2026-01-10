@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 type UserProfileSummary = {
@@ -13,18 +13,22 @@ export function useUserProfileSummary(): UserProfileSummary {
         username: null,
         display_name: null
     });
+    const requestIdRef = useRef<number>(0);
 
     useEffect(() => {
         let isMounted = true;
 
         async function load() {
+            const requestId = requestIdRef.current + 1;
+            requestIdRef.current = requestId;
+            const isStale = () => requestIdRef.current !== requestId;
             setState((prev) => ({ ...prev, loading: true }));
             try {
                 const { data: sessionData } = await supabase.auth.getSession();
                 const session = sessionData.session;
 
                 if (!session) {
-                    if (isMounted) {
+                    if (isMounted && !isStale()) {
                         setState({ loading: false, username: null, display_name: null });
                     }
                     return;
@@ -36,7 +40,7 @@ export function useUserProfileSummary(): UserProfileSummary {
                     .eq("id", session.user.id)
                     .maybeSingle();
 
-                if (!isMounted) {
+                if (!isMounted || isStale()) {
                     return;
                 }
 
@@ -51,7 +55,7 @@ export function useUserProfileSummary(): UserProfileSummary {
                     display_name: data.display_name ?? null
                 });
             } catch (error) {
-                if (!isMounted) {
+                if (!isMounted || isStale()) {
                     return;
                 }
                 console.error("[useUserProfileSummary] load failed", error);

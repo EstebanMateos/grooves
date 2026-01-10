@@ -37,7 +37,7 @@ export function useAuthSession(): AuthSessionState {
         if (!is_mounted) {
           return;
         }
-        console.error("[useAuthSession] getSession failed", error);
+        console.error('[useAuthSession] getSession failed', error);
         setState({
           is_loading: false,
           is_authenticated: false,
@@ -49,11 +49,11 @@ export function useAuthSession(): AuthSessionState {
 
     load();
 
-    const {data: sub} = supabase.auth.onAuthStateChange((_event, session) => {
+    const {data: sub} = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`Supabase auth event: ${event}`);
       if (!is_mounted) {
         return;
       }
-
       setState({
         is_loading: false,
         is_authenticated: !!session,
@@ -65,6 +65,32 @@ export function useAuthSession(): AuthSessionState {
     return () => {
       is_mounted = false;
       sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const storageKey = supabase.auth.storageKey;
+    if (!storageKey) {
+      return;
+    }
+
+    let lastValue: string | null = null;
+    const handle = window.setInterval(() => {
+      try {
+        const current = window.localStorage.getItem(storageKey);
+        if (current !== lastValue) {
+          lastValue = current;
+          if (!current) {
+            console.warn('[useAuthSession] Supabase session storage missing.');
+          }
+        }
+      } catch (error) {
+        console.warn('[useAuthSession] Unable to read Supabase storage.', error);
+      }
+    }, 5000);
+
+    return () => {
+      window.clearInterval(handle);
     };
   }, []);
 

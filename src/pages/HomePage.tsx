@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useUserProfileSummary } from "../hooks/useUserProfileSummary";
@@ -59,14 +59,18 @@ export default function HomePage() {
     const [page, setPage] = useState<number>(1);
     const [pagesTotal, setPagesTotal] = useState<number>(1);
     const [itemsTotal, setItemsTotal] = useState<number>(0);
+    const libraryLoadSeqRef = useRef<number>(0);
+    const authUserIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         async function init() {
             try {
                 const { data } = await supabase.auth.getSession();
+                authUserIdRef.current = data.session?.user.id ?? null;
                 setIsAuthenticated(!!data.session);
             } catch (error) {
                 console.error("[HomePage] getSession failed", error);
+                authUserIdRef.current = null;
                 setIsAuthenticated(false);
             }
         }
@@ -76,6 +80,7 @@ export default function HomePage() {
         const {
             data: { subscription }
         } = supabase.auth.onAuthStateChange((_event, session) => {
+            authUserIdRef.current = session?.user.id ?? null;
             setIsAuthenticated(!!session);
         });
 
@@ -83,6 +88,9 @@ export default function HomePage() {
     }, []);
 
     async function loadLibraryPreview() {
+        const requestId = libraryLoadSeqRef.current + 1;
+        libraryLoadSeqRef.current = requestId;
+        const isStale = () => libraryLoadSeqRef.current !== requestId;
         setLibraryLoading(true);
         setLibraryError("");
 
@@ -91,10 +99,14 @@ export default function HomePage() {
             const session = sessionData.session;
 
             if (!session) {
+                if (isStale()) {
+                    return;
+                }
                 setCollectionItems([]);
                 setWishlistItems([]);
                 return;
             }
+            const userId = session.user.id;
 
             const { data: urData, error: urError } = await supabase
                 .from("user_records")
@@ -145,17 +157,27 @@ export default function HomePage() {
                 }
             }
 
+            if (isStale() || authUserIdRef.current !== userId) {
+                return;
+            }
+
             setCollectionItems(collection.slice(0, 8));
             setWishlistItems(wishlist.slice(0, 8));
         } catch (e) {
+            if (isStale()) {
+                return;
+            }
             setLibraryError(String(e));
         } finally {
-            setLibraryLoading(false);
+            if (!isStale()) {
+                setLibraryLoading(false);
+            }
         }
     }
 
     useEffect(() => {
         if (!isAuthenticated) {
+            libraryLoadSeqRef.current += 1;
             setCollectionItems([]);
             setWishlistItems([]);
             return;

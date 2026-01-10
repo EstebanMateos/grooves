@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
@@ -48,6 +48,10 @@ export default function MyLibraryPage() {
     const [status, setStatus] = useState<string>("");
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
+    const [authUserId, setAuthUserId] = useState<string | null>(null);
+    const [authReady, setAuthReady] = useState<boolean>(false);
+    const activeUserIdRef = useRef<string | null>(null);
+    const loadSeqRef = useRef<number>(0);
 
     function readCache(userId: string): CachedLibrary | null {
         try {
@@ -77,25 +81,34 @@ export default function MyLibraryPage() {
         }
     }
 
-    async function load() {
+    function resetLibraryState() {
+        setItems([]);
+        setStatus("");
+        setError("");
+        setBusyId(null);
+        setLoading(false);
+    }
+
+    async function load(userId: string) {
+        if (!userId) {
+            resetLibraryState();
+            return;
+        }
+
+        const seq = loadSeqRef.current + 1;
+        loadSeqRef.current = seq;
+        const isStale = () =>
+            loadSeqRef.current !== seq || activeUserIdRef.current !== userId;
+
         setLoading(true);
         setError("");
         setStatus("");
 
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
-
-            if (!session) {
-                setItems([]);
-                setError("Merci de te connecter.");
-                return;
-            }
-
             const q = supabase
                 .from("user_records")
                 .select("id,list_type,record_id")
-                .eq("user_id", session.user.id)
+                .eq("user_id", userId)
                 .order("created_at", { ascending: false })
                 .limit(400);
 
@@ -107,6 +120,9 @@ export default function MyLibraryPage() {
 
             const userRecords = (urData ?? []) as UserRecordBaseRow[];
             if (userRecords.length === 0) {
+                if (isStale()) {
+                    return;
+                }
                 setItems([]);
                 return;
             }
@@ -134,29 +150,89 @@ export default function MyLibraryPage() {
                 record: recordById.get(ur.record_id) ?? null
             }));
 
-            setItems(merged);
-            writeCache(session.user.id, merged);
-        } catch (e) {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
-            if (session) {
-                const cached = readCache(session.user.id);
-                if (cached?.items?.length) {
-                    setItems(cached.items);
-                    const when = new Date(cached.updated_at).toLocaleString();
-                    setStatus(`Mode hors-ligne — dernière mise à jour ${when}.`);
-                    return;
-                }
+            if (isStale()) {
+                return;
             }
+
+            setItems(merged);
+            writeCache(userId, merged);
+        } catch (e) {
+            if (isStale()) {
+                return;
+            }
+
+            const cached = readCache(userId);
+            if (cached?.items?.length) {
+                setItems(cached.items);
+                const when = new Date(cached.updated_at).toLocaleString();
+                setStatus(`Mode hors-ligne — dernière mise à jour ${when}.`);
+                return;
+            }
+
             setError(String(e));
         } finally {
-            setLoading(false);
+            if (!isStale()) {
+                setLoading(false);
+            }
         }
     }
 
     useEffect(() => {
-        load();
+        let isMounted = true;
+
+        async function initAuth() {
+            try {
+                const { data, error: sessionError } = await supabase.auth.getSession();
+                if (!isMounted) {
+                    return;
+                }
+                if (sessionError) {
+                    console.error("[MyLibraryPage] getSession failed", sessionError);
+                }
+                const userId = data.session?.user.id ?? null;
+                activeUserIdRef.current = userId;
+                setAuthUserId(userId);
+                setAuthReady(true);
+                if (!userId) {
+                    resetLibraryState();
+                }
+            } catch (error) {
+                if (!isMounted) {
+                    return;
+                }
+                console.error("[MyLibraryPage] getSession failed", error);
+                activeUserIdRef.current = null;
+                setAuthUserId(null);
+                setAuthReady(true);
+                resetLibraryState();
+            }
+        }
+
+        initAuth();
+
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+            const prevUserId = activeUserIdRef.current;
+            const userId = session?.user.id ?? null;
+            activeUserIdRef.current = userId;
+            setAuthUserId(userId);
+            setAuthReady(true);
+            if (!userId || (prevUserId && prevUserId !== userId)) {
+                resetLibraryState();
+            }
+        });
+
+        return () => {
+            isMounted = false;
+            sub.subscription.unsubscribe();
+        };
     }, []);
+
+    useEffect(() => {
+        if (!authReady || !authUserId) {
+            return;
+        }
+        load(authUserId);
+    }, [authReady, authUserId]);
 
     async function removeItem(userRecord: UserRecordRow) {
         setError("");
@@ -230,7 +306,7 @@ export default function MyLibraryPage() {
         });
     }, [items, searchText]);
 
-    const needsLogin = error === "Merci de te connecter.";
+    const needsLogin = authReady && !authUserId;
 
     return (
         <div>

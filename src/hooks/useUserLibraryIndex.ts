@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 
 import {supabase} from '../supabaseClient';
 
@@ -11,8 +11,12 @@ export function useUserLibraryIndex() {
       {collection_ids: new Set<number>(), wishlist_ids: new Set<number>()});
 
   const [loading, setLoading] = useState<boolean>(false);
+  const requestIdRef = useRef<number>(0);
 
   async function reload() {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const isStale = () => requestIdRef.current !== requestId;
     setLoading(true);
 
     try {
@@ -20,6 +24,9 @@ export function useUserLibraryIndex() {
       const session = sessionData.session;
 
       if (!session) {
+        if (isStale()) {
+          return;
+        }
         setIndex({
           collection_ids: new Set<number>(),
           wishlist_ids: new Set<number>()
@@ -51,15 +58,24 @@ export function useUserLibraryIndex() {
         }
       });
 
+      if (isStale()) {
+        return;
+      }
+
       setIndex({collection_ids, wishlist_ids});
     } catch (error) {
+      if (isStale()) {
+        return;
+      }
       console.error('[useUserLibraryIndex] reload failed', error);
       setIndex({
         collection_ids: new Set<number>(),
         wishlist_ids: new Set<number>()
       });
     } finally {
-      setLoading(false);
+      if (!isStale()) {
+        setLoading(false);
+      }
     }
   }
 

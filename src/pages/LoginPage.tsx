@@ -12,6 +12,23 @@ export default function LoginPage() {
     const [status, setStatus] = useState<string>("");
     const [statusType, setStatusType] = useState<"error" | "success" | "">("");
     const [loading, setLoading] = useState(false);
+    const AUTH_TIMEOUT_MS = 8000;
+
+    async function withTimeout<T>(promise: Promise<T>, timeoutMs = AUTH_TIMEOUT_MS): Promise<T> {
+        let timeoutId: number | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = window.setTimeout(() => {
+                reject(new Error("Délai dépassé. Vérifie ta connexion et réessaie."));
+            }, timeoutMs);
+        });
+        try {
+            return await Promise.race([promise, timeoutPromise]);
+        } finally {
+            if (timeoutId) {
+                window.clearTimeout(timeoutId);
+            }
+        }
+    }
 
     async function generateAnonUsername(): Promise<string> {
         try {
@@ -73,17 +90,23 @@ export default function LoginPage() {
         setStatus("");
         setStatusType("");
         setLoading(true);
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-            setStatus(error.message);
+        try {
+            const { error } = await withTimeout(supabase.auth.signUp({ email, password }));
+            if (error) {
+                setStatus(error.message);
+                setStatusType("error");
+            } else {
+                setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
+                setStatusType("success");
+                setMode("signin");
+                navigate("/login");
+            }
+        } catch (error) {
+            setStatus(error instanceof Error ? error.message : String(error));
             setStatusType("error");
-        } else {
-            setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
-            setStatusType("success");
-            setMode("signin");
-            navigate("/login");
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }
 
     async function signIn() {
@@ -91,7 +114,9 @@ export default function LoginPage() {
         setStatusType("");
         setLoading(true);
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            const { data, error } = await withTimeout(
+                supabase.auth.signInWithPassword({ email, password })
+            );
             if (error) {
                 setStatus(error.message);
                 setStatusType("error");
@@ -100,14 +125,14 @@ export default function LoginPage() {
 
             let session: Session | null = data.session ?? null;
             if (!session) {
-                const { data: sessionData } = await supabase.auth.getSession();
+                const { data: sessionData } = await withTimeout(supabase.auth.getSession());
                 session = sessionData.session ?? null;
             }
             let hasProfile = false;
             let isAnon = false;
 
             if (session) {
-                const profile = await ensureProfileUsername(session.user.id);
+                const profile = await withTimeout(ensureProfileUsername(session.user.id));
                 hasProfile = !!profile.username;
                 isAnon = profile.isAnon;
             }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import BackButton from "../components/BackButton";
@@ -36,6 +36,7 @@ export default function DiscoverProfilesPage() {
     const [favoritesLoading, setFavoritesLoading] = useState<boolean>(false);
     const [favoriteBusy, setFavoriteBusy] = useState<string | null>(null);
     const [favoriteStatus, setFavoriteStatus] = useState<string>("");
+    const favoritesLoadSeqRef = useRef<number>(0);
 
     const isSearching = query.trim().length > 0;
 
@@ -125,11 +126,17 @@ export default function DiscoverProfilesPage() {
     }
 
     async function loadFavorites() {
+        const requestId = favoritesLoadSeqRef.current + 1;
+        favoritesLoadSeqRef.current = requestId;
+        const isStale = () => favoritesLoadSeqRef.current !== requestId;
         setFavoritesLoading(true);
         try {
             const { data: sessionData } = await supabase.auth.getSession();
             const session = sessionData.session;
             if (!session) {
+                if (isStale()) {
+                    return;
+                }
                 setFavorites([]);
                 setFavoriteRows([]);
                 return;
@@ -158,16 +165,24 @@ export default function DiscoverProfilesPage() {
             const favProfiles = favRows
                 .map((r) => (Array.isArray(r.profile) ? r.profile[0] : r.profile))
                 .filter((x): x is PublicProfileRow => !!x);
+            if (isStale()) {
+                return;
+            }
             setFavorites(favProfiles.map((p) => p.username).filter((x) => !!x));
             setFavoriteRows(favProfiles.filter((x) => x.is_public_collection || x.is_public_wishlist));
         } catch (e) {
+            if (isStale()) {
+                return;
+            }
             setFavorites([]);
             setFavoriteRows([]);
             const formatted = formatError(e);
             setError(formatted.status ? `${formatted.message} (status ${formatted.status})` : formatted.message);
             console.error("[DiscoverProfilesPage] loadFavorites failed", e);
         } finally {
-            setFavoritesLoading(false);
+            if (!isStale()) {
+                setFavoritesLoading(false);
+            }
         }
     }
 
