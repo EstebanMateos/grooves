@@ -37,6 +37,7 @@ export default function DiscoverProfilesPage() {
     const [favoriteBusy, setFavoriteBusy] = useState<string | null>(null);
     const [favoriteStatus, setFavoriteStatus] = useState<string>("");
     const favoritesLoadSeqRef = useRef<number>(0);
+    const searchSeqRef = useRef<number>(0);
 
     const isSearching = query.trim().length > 0;
 
@@ -53,6 +54,9 @@ export default function DiscoverProfilesPage() {
     }
 
     async function search() {
+        const requestId = searchSeqRef.current + 1;
+        searchSeqRef.current = requestId;
+        const isStale = () => searchSeqRef.current !== requestId;
         setLoading(true);
         setError("");
         setRows([]);
@@ -60,6 +64,9 @@ export default function DiscoverProfilesPage() {
         try {
             const q = query.trim().toLowerCase();
             if (!q) {
+                if (!isStale()) {
+                    setLoading(false);
+                }
                 return;
             }
 
@@ -75,13 +82,21 @@ export default function DiscoverProfilesPage() {
                 throw dbError;
             }
 
+            if (isStale()) {
+                return;
+            }
             setRows((data ?? []) as PublicProfileRow[]);
         } catch (e) {
+            if (isStale()) {
+                return;
+            }
             const formatted = formatError(e);
             setError(formatted.status ? `${formatted.message} (status ${formatted.status})` : formatted.message);
             console.error("[DiscoverProfilesPage] search failed", e);
         } finally {
-            setLoading(false);
+            if (!isStale()) {
+                setLoading(false);
+            }
         }
     }
 
@@ -248,6 +263,7 @@ export default function DiscoverProfilesPage() {
 
     useEffect(() => {
         if (!query.trim()) {
+            searchSeqRef.current += 1;
             setRows([]);
             setError("");
             loadDefault();

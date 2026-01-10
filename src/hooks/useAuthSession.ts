@@ -20,7 +20,10 @@ export function useAuthSession(): AuthSessionState {
 
     async function load() {
       try {
-        const {data} = await supabase.auth.getSession();
+        const {data, error} = await supabase.auth.getSession();
+        if (error) {
+          throw error;
+        }
         const session = data.session;
 
         if (!is_mounted) {
@@ -74,6 +77,39 @@ export function useAuthSession(): AuthSessionState {
       return;
     }
 
+    let isMounted = true;
+    const applySignedOut = () => {
+      if (!isMounted) {
+        return;
+      }
+      setState((prev) => {
+        if (!prev.is_loading &&
+            !prev.is_authenticated &&
+            prev.user_id === null &&
+            prev.user_email === null) {
+          return prev;
+        }
+        return {
+          is_loading: false,
+          is_authenticated: false,
+          user_id: null,
+          user_email: null
+        };
+      });
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== storageKey) {
+        return;
+      }
+      if (!event.newValue) {
+        console.warn('[useAuthSession] Supabase session storage missing.');
+        applySignedOut();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+
     let lastValue: string | null = null;
     const handle = window.setInterval(() => {
       try {
@@ -82,14 +118,18 @@ export function useAuthSession(): AuthSessionState {
           lastValue = current;
           if (!current) {
             console.warn('[useAuthSession] Supabase session storage missing.');
+            applySignedOut();
           }
         }
       } catch (error) {
         console.warn('[useAuthSession] Unable to read Supabase storage.', error);
+        applySignedOut();
       }
     }, 5000);
 
     return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleStorage);
       window.clearInterval(handle);
     };
   }, []);

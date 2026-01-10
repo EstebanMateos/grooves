@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 type DiscogsReleaseSearchItem = {
@@ -42,8 +42,12 @@ export default function SearchResultsPage() {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
     const [pageInput, setPageInput] = useState<string>(String(pageParam));
+    const fetchSeqRef = useRef<number>(0);
 
     async function fetchPage(q: string, nextPage: number) {
+        const requestId = fetchSeqRef.current + 1;
+        fetchSeqRef.current = requestId;
+        const isStale = () => fetchSeqRef.current !== requestId;
         setError("");
         setLoading(true);
 
@@ -63,16 +67,27 @@ export default function SearchResultsPage() {
 
             const pagination = json.pagination;
             if (pagination) {
+                if (isStale()) {
+                    return;
+                }
                 setPage(pagination.page);
                 setPagesTotal(pagination.pages);
                 setItemsTotal(pagination.items);
             }
 
+            if (isStale()) {
+                return;
+            }
             setResults(vinylReleases);
         } catch (e) {
+            if (isStale()) {
+                return;
+            }
             setError(String(e));
         } finally {
-            setLoading(false);
+            if (!isStale()) {
+                setLoading(false);
+            }
         }
     }
 
@@ -82,9 +97,12 @@ export default function SearchResultsPage() {
         setPageInput(String(pageParam));
 
         if (!queryParam) {
+            fetchSeqRef.current += 1;
             setResults([]);
             setItemsTotal(0);
             setPagesTotal(1);
+            setError("");
+            setLoading(false);
             return;
         }
 

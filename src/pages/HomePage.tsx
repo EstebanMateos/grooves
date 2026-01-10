@@ -61,6 +61,7 @@ export default function HomePage() {
     const [itemsTotal, setItemsTotal] = useState<number>(0);
     const libraryLoadSeqRef = useRef<number>(0);
     const authUserIdRef = useRef<string | null>(null);
+    const searchLoadSeqRef = useRef<number>(0);
 
     useEffect(() => {
         async function init() {
@@ -186,6 +187,9 @@ export default function HomePage() {
     }, [isAuthenticated]);
 
     async function fetchSearchPage(nextPage: number, append: boolean) {
+        const requestId = searchLoadSeqRef.current + 1;
+        searchLoadSeqRef.current = requestId;
+        const isStale = () => searchLoadSeqRef.current !== requestId;
         setSearchError("");
         setSearchLoading(true);
 
@@ -206,16 +210,27 @@ export default function HomePage() {
 
             const pagination = json.pagination;
             if (pagination) {
+                if (isStale()) {
+                    return;
+                }
                 setPage(pagination.page);
                 setPagesTotal(pagination.pages);
                 setItemsTotal(pagination.items);
             }
 
+            if (isStale()) {
+                return;
+            }
             setResults((prev) => (append ? [...prev, ...vinylReleases] : vinylReleases));
         } catch (e) {
+            if (isStale()) {
+                return;
+            }
             setSearchError(String(e));
         } finally {
-            setSearchLoading(false);
+            if (!isStale()) {
+                setSearchLoading(false);
+            }
         }
     }
 

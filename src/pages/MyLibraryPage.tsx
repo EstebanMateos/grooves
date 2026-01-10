@@ -304,7 +304,7 @@ export default function MyLibraryPage() {
             }
             return `${r.artist} ${r.title}`.toLowerCase().includes(needle);
         });
-    }, [items, searchText]);
+    }, [items, searchText, filter]);
 
     const needsLogin = authReady && !authUserId;
 
