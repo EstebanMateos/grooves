@@ -79,7 +79,7 @@ export function useAuthSession(): AuthSessionState {
   }, []);
 
   useEffect(() => {
-    const storageKey = supabase.auth.storageKey;
+    const storageKey = (supabase.auth as unknown as {storageKey?: string}).storageKey;
     if (!storageKey) {
       return;
     }
