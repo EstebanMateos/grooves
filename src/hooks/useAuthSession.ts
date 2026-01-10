@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import type {Session} from '@supabase/supabase-js';
 
 import {supabase} from '../supabaseClient';
 
@@ -22,6 +23,70 @@ export function useAuthSession(): AuthSessionState {
       authSeqRef.current += 1;
       return authSeqRef.current;
     };
+    const applySignedOut = () => {
+      setState({
+        is_loading: false,
+        is_authenticated: false,
+        user_id: null,
+        user_email: null
+      });
+    };
+    const applySession = (session: Session | null) => {
+      setState({
+        is_loading: false,
+        is_authenticated: !!session,
+        user_id: session?.user.id ?? null,
+        user_email: session?.user.email ?? null
+      });
+    };
+    const isAuthSessionMissing = (err: unknown): boolean => {
+      if (err && typeof err === 'object' && 'name' in err) {
+        if ((err as {name?: string}).name === 'AuthSessionMissingError') {
+          return true;
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      return message.toLowerCase().includes('auth session missing');
+    };
+    const resolveSession = async (seq: number, reason: string) => {
+      try {
+        const {data, error} = await supabase.auth.getSession();
+        if (error) {
+          throw error;
+        }
+        let session = data.session ?? null;
+        if (!session) {
+          const {data: refreshData, error: refreshError} =
+              await supabase.auth.refreshSession();
+          if (refreshError) {
+            if (isAuthSessionMissing(refreshError)) {
+              if (!is_mounted || authSeqRef.current !== seq) {
+                return;
+              }
+              applySignedOut();
+              return;
+            }
+            console.warn(`[useAuthSession] ${reason} refresh failed`, refreshError);
+            return;
+          }
+          session = refreshData.session ?? null;
+        }
+
+        if (!is_mounted || authSeqRef.current !== seq) {
+          return;
+        }
+        if (!session) {
+          applySignedOut();
+          return;
+        }
+        applySession(session);
+      } catch (error) {
+        if (!is_mounted || authSeqRef.current !== seq) {
+          return;
+        }
+        console.warn(`[useAuthSession] ${reason} revalidate failed`, error);
+      }
+    };
 
     async function load() {
       const seq = bumpAuthSeq();
@@ -36,23 +101,13 @@ export function useAuthSession(): AuthSessionState {
           return;
         }
 
-        setState({
-          is_loading: false,
-          is_authenticated: !!session,
-          user_id: session?.user.id ?? null,
-          user_email: session?.user.email ?? null
-        });
+        applySession(session);
       } catch (error) {
         if (!is_mounted || authSeqRef.current !== seq) {
           return;
         }
         console.error('[useAuthSession] getSession failed', error);
-        setState({
-          is_loading: false,
-          is_authenticated: false,
-          user_id: null,
-          user_email: null
-        });
+        applySignedOut();
       }
     }
 
@@ -64,12 +119,14 @@ export function useAuthSession(): AuthSessionState {
       if (!is_mounted || authSeqRef.current !== seq) {
         return;
       }
-      setState({
-        is_loading: false,
-        is_authenticated: !!session,
-        user_id: session?.user.id ?? null,
-        user_email: session?.user.email ?? null
-      });
+      if (session) {
+        applySession(session);
+      } else {
+        applySignedOut();
+      }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        void resolveSession(seq, event);
+      }
     });
 
     return () => {

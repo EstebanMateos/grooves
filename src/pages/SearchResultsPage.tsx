@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 
 type DiscogsReleaseSearchItem = {
     id: number;
@@ -55,7 +56,7 @@ export default function SearchResultsPage() {
             const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
             const url = `${baseUrl}/search?q=${encodeURIComponent(q)}&type=release&page=${nextPage}&per_page=50`;
 
-            const resp = await fetch(url);
+            const resp = await fetchWithRateLimit(url);
             if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status}`);
             }

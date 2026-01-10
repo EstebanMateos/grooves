@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { supabase } from "../supabaseClient";
+import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import BackButton from "../components/BackButton";
 
 type DiscogsRelease = {
@@ -90,9 +91,10 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
             try {
                 const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
-                const resp = await fetch(`${baseUrl}/release/${encodeURIComponent(discogsReleaseId)}`, {
-                    signal: controller.signal
-                });
+                const resp = await fetchWithRateLimit(
+                    `${baseUrl}/release/${encodeURIComponent(discogsReleaseId)}`,
+                    { signal: controller.signal }
+                );
                 if (!resp.ok) {
                     throw new Error(`HTTP ${resp.status}`);
                 }
@@ -123,6 +125,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
     async function requireSession(): Promise<{ user_id: string } | null> {
         const { data, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) {
+            console.warn("[ReleasePage] getSession failed", sessionError);
             setActionStatus(String(sessionError));
             return null;
         }
@@ -130,6 +133,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         if (!session) {
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             if (refreshError) {
+                console.warn("[ReleasePage] refreshSession failed", refreshError);
                 if (isAuthSessionMissing(refreshError)) {
                     onRequireAuth();
                     return null;
@@ -267,6 +271,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             await library.reload();
             setActionStatus(listType === "wishlist" ? "Ajouté à la wishlist." : "Ajouté à la collection.");
         } catch (e) {
+            console.error("[ReleasePage] addToList failed", e);
             setActionStatus(String(e));
         } finally {
             setActionLoading(false);
@@ -335,6 +340,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             await library.reload();
             setActionStatus(listType === "wishlist" ? "Retiré de la wishlist." : "Retiré de la collection.");
         } catch (e) {
+            console.error("[ReleasePage] removeFromList failed", e);
             setActionStatus(String(e));
         } finally {
             setActionLoading(false);

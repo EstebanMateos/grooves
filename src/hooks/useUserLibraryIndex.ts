@@ -27,6 +27,7 @@ export function useUserLibraryIndex() {
   async function getSessionOrRefresh() {
     const {data, error: sessionError} = await supabase.auth.getSession();
     if (sessionError) {
+      console.warn('[useUserLibraryIndex] getSession failed', sessionError);
       throw sessionError;
     }
     if (data.session) {
@@ -36,6 +37,7 @@ export function useUserLibraryIndex() {
     const {data: refreshData, error: refreshError} =
         await supabase.auth.refreshSession();
     if (refreshError) {
+      console.warn('[useUserLibraryIndex] refreshSession failed', refreshError);
       if (isAuthSessionMissing(refreshError)) {
         return null;
       }

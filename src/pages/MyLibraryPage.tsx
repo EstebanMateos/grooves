@@ -67,6 +67,7 @@ export default function MyLibraryPage() {
     async function getSessionOrRefresh() {
         const { data, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) {
+            console.warn("[MyLibraryPage] getSession failed", sessionError);
             throw sessionError;
         }
         if (data.session) {
@@ -75,6 +76,7 @@ export default function MyLibraryPage() {
 
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError) {
+            console.warn("[MyLibraryPage] refreshSession failed", refreshError);
             if (isAuthSessionMissing(refreshError)) {
                 return null;
             }
@@ -192,6 +194,7 @@ export default function MyLibraryPage() {
                 return;
             }
 
+            console.error("[MyLibraryPage] load failed", e);
             const cached = readCache(userId);
             if (cached?.items?.length) {
                 setItems(cached.items);
@@ -314,6 +317,7 @@ export default function MyLibraryPage() {
 
             setStatus(userRecord.list_type === "collection" ? "Retiré de la collection." : "Retiré de la wishlist.");
         } catch (e) {
+            console.error("[MyLibraryPage] removeItem failed", e);
             setError(String(e));
         } finally {
             setBusyId(null);
