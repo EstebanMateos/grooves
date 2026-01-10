@@ -12,22 +12,27 @@ export default function LoginPage() {
     const [status, setStatus] = useState<string>("");
     const [statusType, setStatusType] = useState<"error" | "success" | "">("");
     const [loading, setLoading] = useState(false);
-    const AUTH_TIMEOUT_MS = 8000;
 
-    async function withTimeout<T>(promise: Promise<T>, timeoutMs = AUTH_TIMEOUT_MS): Promise<T> {
-        let timeoutId: number | undefined;
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutId = window.setTimeout(() => {
-                reject(new Error("Délai dépassé. Vérifie ta connexion et réessaie."));
-            }, timeoutMs);
-        });
-        try {
-            return await Promise.race([promise, timeoutPromise]);
-        } finally {
-            if (timeoutId) {
-                window.clearTimeout(timeoutId);
-            }
+    function formatAuthError(error: unknown): string {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message) {
+            return "Erreur inconnue.";
         }
+        const normalized = message.toLowerCase();
+        if (normalized.includes("timeout") || normalized.includes("expirée")) {
+            return "Délai dépassé. Vérifie ta connexion et réessaie.";
+        }
+        return message;
+    }
+
+    function buildAnonUsername(suffix?: string): string {
+        const safeSuffix = (suffix ?? "").replace(/[^a-z0-9_]/g, "");
+        if (safeSuffix) {
+            return `ano_${safeSuffix}`;
+        }
+        const timePart = Date.now().toString(36);
+        const randPart = Math.random().toString(36).slice(2, 8);
+        return `ano_${timePart}_${randPart}`;
     }
 
     async function generateAnonUsername(): Promise<string> {
@@ -37,12 +42,12 @@ export default function LoginPage() {
                 .select("id", { count: "exact", head: true })
                 .ilike("username", "ano_%");
             if (typeof count === "number") {
-                return `ano_${count + 1}`;
+                return buildAnonUsername(String(count + 1));
             }
         } catch {
             // Fall back to timestamp-based ID if count fails.
         }
-        return `ano_${Math.floor(Date.now() / 1000)}`;
+        return buildAnonUsername();
     }
 
     async function ensureProfileUsername(userId: string): Promise<{ username: string; isAnon: boolean }> {
@@ -61,6 +66,7 @@ export default function LoginPage() {
         }
 
         let candidate = await generateAnonUsername();
+        let lastError: unknown = null;
         for (let attempt = 0; attempt < 5; attempt += 1) {
             const { error: upsertError } = await supabase
                 .from("profiles")
@@ -73,17 +79,19 @@ export default function LoginPage() {
                 return { username: candidate, isAnon: true };
             }
 
-            if (upsertError.code === "23505" || upsertError.message.includes("duplicate")) {
-                const parts = candidate.split("_");
-                const suffix = Number(parts[1]) || 0;
-                candidate = `ano_${suffix + 1}`;
+            lastError = upsertError;
+            const message = upsertError.message?.toLowerCase() ?? "";
+            if (upsertError.code === "23505" || message.includes("duplicate")) {
+                candidate = buildAnonUsername();
                 continue;
             }
 
             throw upsertError;
         }
 
-        return { username: candidate, isAnon: true };
+        throw lastError instanceof Error
+            ? lastError
+            : new Error("Impossible de créer un pseudo automatique.");
     }
 
     async function signUp() {
@@ -91,7 +99,7 @@ export default function LoginPage() {
         setStatusType("");
         setLoading(true);
         try {
-            const { error } = await withTimeout(supabase.auth.signUp({ email, password }));
+            const { error } = await supabase.auth.signUp({ email, password });
             if (error) {
                 setStatus(error.message);
                 setStatusType("error");
@@ -102,7 +110,7 @@ export default function LoginPage() {
                 navigate("/login");
             }
         } catch (error) {
-            setStatus(error instanceof Error ? error.message : String(error));
+            setStatus(formatAuthError(error));
             setStatusType("error");
         } finally {
             setLoading(false);
@@ -114,9 +122,7 @@ export default function LoginPage() {
         setStatusType("");
         setLoading(true);
         try {
-            const { data, error } = await withTimeout(
-                supabase.auth.signInWithPassword({ email, password })
-            );
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) {
                 setStatus(error.message);
                 setStatusType("error");
@@ -125,14 +131,14 @@ export default function LoginPage() {
 
             let session: Session | null = data.session ?? null;
             if (!session) {
-                const { data: sessionData } = await withTimeout(supabase.auth.getSession());
+                const { data: sessionData } = await supabase.auth.getSession();
                 session = sessionData.session ?? null;
             }
             let hasProfile = false;
             let isAnon = false;
 
             if (session) {
-                const profile = await withTimeout(ensureProfileUsername(session.user.id));
+                const profile = await ensureProfileUsername(session.user.id);
                 hasProfile = !!profile.username;
                 isAnon = profile.isAnon;
             }
@@ -140,6 +146,9 @@ export default function LoginPage() {
             setStatus("Connexion réussie.");
             setStatusType("success");
             navigate(hasProfile && !isAnon ? "/" : "/profile");
+        } catch (error) {
+            setStatus(formatAuthError(error));
+            setStatusType("error");
         } finally {
             setLoading(false);
         }
