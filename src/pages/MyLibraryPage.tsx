@@ -184,14 +184,14 @@ export default function MyLibraryPage() {
             const merged: LibraryItemRow[] = [
                 ...collectionItems.map((item) => ({
                     id: item.id,
-                    list_type: "collection",
+                    list_type: "collection" as const,
                     record_id: item.record_id,
                     record: recordById.get(item.record_id) ?? null,
                     created_at: item.created_at
                 })),
                 ...wishlistItems.map((item) => ({
                     id: item.id,
-                    list_type: "wishlist",
+                    list_type: "wishlist" as const,
                     record_id: item.record_id,
                     record: recordById.get(item.record_id) ?? null,
                     created_at: item.created_at
