@@ -23,7 +23,6 @@ let state: AuthSessionState = {
 const listeners = new Set<Listener>();
 
 let started = false;
-let subscription: {unsubscribe: () => void}|null = null;
 
 function emit(): void {
   for (const listener of listeners) {
@@ -68,11 +67,9 @@ function startStore(): void {
 
   void bootstrap();
 
-  const {data} = supabase.auth.onAuthStateChange((event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     applySession(session ?? null, event);
   });
-
-  subscription = data.subscription;
 }
 
 function getSnapshot(): AuthSessionState {

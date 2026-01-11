@@ -63,7 +63,7 @@ export async function fetchWithRateLimit(
   const baseDelayMs = options.baseDelayMs ?? 2000;
   const maxDelayMs = options.maxDelayMs ?? 16000;
   const jitterMs = options.jitterMs ?? 500;
-  const signal = options.signal ?? init.signal;
+  const signal = options.signal ?? init.signal ?? undefined;
 
   let attempt = 0;
   while (true) {
