@@ -12,6 +12,7 @@ import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import ReleasePage from "./pages/ReleasePage";
 import SearchResultsPage from "./pages/SearchResultsPage";
+import AccountCreatedPage from "./pages/AccountCreatedPage";
 
 export default function App() {
     const auth = useAuthSession();
@@ -261,6 +262,7 @@ export default function App() {
             <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/account-created" element={<AccountCreatedPage />} />
                 <Route path="/people" element={<DiscoverProfilesPage />} />
                 <Route path="/my-library" element={<MyLibraryPage />} />
                 <Route path="/profile" element={<ProfileSettingsPage />} />

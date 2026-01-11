@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { getEmailRedirectUrl } from "../utils/authRedirect";
 
 type Props = {
     open: boolean;
@@ -9,6 +11,7 @@ type Props = {
 };
 
 export default function AuthModal({ open, onClose, onAuthed }: Props) {
+    const navigate = useNavigate();
     const [mode, setMode] = useState<"signin" | "signup">("signup");
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
@@ -65,15 +68,19 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.signUp({ email, password });
+            const redirectTo = getEmailRedirectUrl("/account-created");
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { emailRedirectTo: redirectTo }
+            });
             if (error) {
                 setStatus(error.message);
                 setStatusType("error");
                 return;
             }
-            setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
-            setStatusType("success");
-            setMode("signin");
+            onClose();
+            navigate("/account-created");
         } catch (error) {
             setStatus(formatAuthError(error));
             setStatusType("error");

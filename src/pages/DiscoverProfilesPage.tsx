@@ -56,6 +56,10 @@ export default function DiscoverProfilesPage() {
         };
     }
 
+    function isAnonUsername(username: string | null | undefined) {
+        return !!username && username.startsWith("ano_");
+    }
+
     async function search() {
         const requestId = searchSeqRef.current + 1;
         searchSeqRef.current = requestId;
@@ -179,8 +183,9 @@ export default function DiscoverProfilesPage() {
             if (isStale()) {
                 return;
             }
-            setFavorites(favProfiles.map((p) => p.username).filter((x) => !!x));
-            setFavoriteRows(favProfiles.filter((x) => x.is_public_collection || x.is_public_wishlist));
+            const visibleFavorites = favProfiles.filter((x) => x.username && !isAnonUsername(x.username));
+            setFavorites(visibleFavorites.map((p) => p.username).filter((x) => !!x));
+            setFavoriteRows(visibleFavorites.filter((x) => x.is_public_collection || x.is_public_wishlist));
         } catch (e) {
             if (isStale()) {
                 return;
@@ -302,6 +307,9 @@ export default function DiscoverProfilesPage() {
             if (!r.username) {
                 return;
             }
+            if (isAnonUsername(r.username)) {
+                return;
+            }
             if (seen.has(r.username)) {
                 return;
             }
@@ -316,6 +324,9 @@ export default function DiscoverProfilesPage() {
         const out: PublicProfileRow[] = [];
         defaultRows.forEach((r) => {
             if (!r.username) {
+                return;
+            }
+            if (isAnonUsername(r.username)) {
                 return;
             }
             if (!r.is_public_collection && !r.is_public_wishlist) {

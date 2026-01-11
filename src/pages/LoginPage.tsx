@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
+import { getEmailRedirectUrl } from "../utils/authRedirect";
 
 export default function LoginPage() {
     const navigate = useNavigate();
@@ -101,15 +102,17 @@ export default function LoginPage() {
         setStatusType("");
         setLoading(true);
         try {
-            const { error } = await supabase.auth.signUp({ email, password });
+            const redirectTo = getEmailRedirectUrl("/account-created");
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { emailRedirectTo: redirectTo }
+            });
             if (error) {
                 setStatus(error.message);
                 setStatusType("error");
             } else {
-                setStatus("Veuillez confirmer sur l'email reçu par Supabase puis connecte-toi.");
-                setStatusType("success");
-                setMode("signin");
-                navigate("/login");
+                navigate("/account-created");
             }
         } catch (error) {
             setStatus(formatAuthError(error));
