@@ -22,6 +22,7 @@ type UserRecordBaseRow = {
     id: string;
     list_type: "collection" | "wishlist";
     record_id: string;
+    created_at: string;
 };
 
 type UserRecordRow = {
@@ -29,9 +30,11 @@ type UserRecordRow = {
     list_type: "collection" | "wishlist";
     record_id: string;
     record: RecordRow | null;
+    created_at: string;
 };
 
 type FilterType = "collection" | "wishlist" | "all";
+type SortKey = "recent" | "title" | "artist" | "year";
 
 type CachedLibrary = {
     updated_at: string;
@@ -51,6 +54,7 @@ export default function MyLibraryPage() {
     const [status, setStatus] = useState<string>("");
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
+    const [sortKey, setSortKey] = useState<SortKey>("recent");
     const activeUserIdRef = useRef<string | null>(null);
     const loadSeqRef = useRef<number>(0);
 
@@ -109,7 +113,7 @@ export default function MyLibraryPage() {
         try {
             const q = supabase
                 .from("user_records")
-                .select("id,list_type,record_id")
+                .select("id,list_type,record_id,created_at")
                 .eq("user_id", userId)
                 .order("created_at", { ascending: false })
                 .limit(400);
@@ -150,7 +154,8 @@ export default function MyLibraryPage() {
                 id: ur.id,
                 list_type: ur.list_type,
                 record_id: ur.record_id,
-                record: recordById.get(ur.record_id) ?? null
+                record: recordById.get(ur.record_id) ?? null,
+                created_at: ur.created_at
             }));
 
             if (isStale()) {
@@ -250,27 +255,126 @@ export default function MyLibraryPage() {
         }
     }
 
-    const filteredItems = useMemo(() => {
-        let out = items;
+    const sortedItems = useMemo(() => {
+        let out = items.filter((ur) => !!ur.record);
         if (filter !== "all") {
             out = out.filter((ur) => ur.list_type === filter);
         }
 
         const needle = searchText.trim().toLowerCase();
-        if (!needle) {
-            return out;
+        if (needle) {
+            out = out.filter((ur) => {
+                const r = ur.record;
+                if (!r) {
+                    return false;
+                }
+                return `${r.artist} ${r.title}`.toLowerCase().includes(needle);
+            });
         }
 
-        return out.filter((ur) => {
-            const r = ur.record;
-            if (!r) {
-                return false;
-            }
-            return `${r.artist} ${r.title}`.toLowerCase().includes(needle);
-        });
-    }, [items, searchText, filter]);
+        const next = [...out];
+        const compareText = (a: string, b: string) => a.localeCompare(b, "fr", { sensitivity: "base" });
+
+        if (sortKey === "recent") {
+            next.sort((a, b) => {
+                const aTime = a.created_at ? Date.parse(a.created_at) : 0;
+                const bTime = b.created_at ? Date.parse(b.created_at) : 0;
+                return bTime - aTime;
+            });
+        } else if (sortKey === "title") {
+            next.sort((a, b) => {
+                const titleCmp = compareText(a.record?.title ?? "", b.record?.title ?? "");
+                if (titleCmp !== 0) {
+                    return titleCmp;
+                }
+                const artistCmp = compareText(a.record?.artist ?? "", b.record?.artist ?? "");
+                if (artistCmp !== 0) {
+                    return artistCmp;
+                }
+                const yearA = a.record?.year ?? Number.POSITIVE_INFINITY;
+                const yearB = b.record?.year ?? Number.POSITIVE_INFINITY;
+                return yearA - yearB;
+            });
+        } else if (sortKey === "artist") {
+            next.sort((a, b) => {
+                const artistCmp = compareText(a.record?.artist ?? "", b.record?.artist ?? "");
+                if (artistCmp !== 0) {
+                    return artistCmp;
+                }
+                return compareText(a.record?.title ?? "", b.record?.title ?? "");
+            });
+        } else if (sortKey === "year") {
+            next.sort((a, b) => {
+                const yearA = a.record?.year ?? Number.POSITIVE_INFINITY;
+                const yearB = b.record?.year ?? Number.POSITIVE_INFINITY;
+                if (yearA !== yearB) {
+                    return yearA - yearB;
+                }
+                return compareText(a.record?.title ?? "", b.record?.title ?? "");
+            });
+        }
+
+        return next;
+    }, [items, searchText, filter, sortKey]);
 
     const needsLogin = !auth.is_loading && !auth.is_authenticated;
+    const collectionItems = filter === "all" ? sortedItems.filter((ur) => ur.list_type === "collection") : [];
+    const wishlistItems = filter === "all" ? sortedItems.filter((ur) => ur.list_type === "wishlist") : [];
+
+    const renderItem = (ur: UserRecordRow) => {
+        const r = ur.record;
+        if (!r) {
+            return null;
+        }
+
+        return (
+            <div
+                key={ur.id}
+                className="panel"
+                style={{
+                    padding: 12,
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "center"
+                }}
+            >
+                <div className="thumb" style={{ width: 80, height: 80 }}>
+                    {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ fontWeight: 800 }}>{r.title}</div>
+                        <span className={`pill ${ur.list_type === "collection" ? "pillCollection" : "pillWishlist"}`}>
+                            {ur.list_type === "collection" ? "Collection" : "Wishlist"}
+                        </span>
+                    </div>
+
+                    <div className="muted" style={{ marginTop: 4 }}>
+                        {r.artist} · {r.year ?? "?"} · {r.country ?? "?"}
+                    </div>
+
+                    <div className="muted small" style={{ marginTop: 2 }}>
+                        {r.label ?? "?"}
+                        {r.catno ? ` · ${r.catno}` : ""}
+                    </div>
+
+                    <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                        <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
+                            Ouvrir
+                        </Link>
+                        <button
+                            onClick={() => removeItem(ur)}
+                            disabled={busyId === ur.id}
+                            className="btn btnGhost"
+                        >
+                            Retirer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div>
@@ -295,27 +399,46 @@ export default function MyLibraryPage() {
             ) : null}
 
             {needsLogin ? null : (
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
-                    Tout
-                </button>
-                <button onClick={() => setFilter("collection")} disabled={filter === "collection"} className="btn btnGhost">
-                    Collection
-                </button>
-                <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"} className="btn btnGhost">
-                    Wishlist
-                </button>
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+                    <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
+                        Tout
+                    </button>
+                    <button
+                        onClick={() => setFilter("collection")}
+                        disabled={filter === "collection"}
+                        className="btn btnGhost"
+                    >
+                        Collection
+                    </button>
+                    <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"} className="btn btnGhost">
+                        Wishlist
+                    </button>
 
-                <div style={{ flex: 1 }} />
+                    <div style={{ flex: 1 }} />
 
-                <input
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    placeholder="Filtrer par artiste ou titre"
-                    className="input"
-                    style={{ minWidth: 240 }}
-                />
-            </div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className="muted small">Trier par</span>
+                        <select
+                            value={sortKey}
+                            onChange={(e) => setSortKey(e.target.value as SortKey)}
+                            className="input"
+                            style={{ minWidth: 180 }}
+                        >
+                            <option value="recent">Ajouts récents</option>
+                            <option value="title">Titre A-Z</option>
+                            <option value="artist">Artiste A-Z</option>
+                            <option value="year">Année</option>
+                        </select>
+                    </label>
+
+                    <input
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        placeholder="Filtrer par artiste ou titre"
+                        className="input"
+                        style={{ minWidth: 240 }}
+                    />
+                </div>
             )}
 
             {loading ? <div style={{ marginTop: 12 }} className="muted">Chargement…</div> : null}
@@ -323,65 +446,36 @@ export default function MyLibraryPage() {
             {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
 
             {needsLogin ? null : (
-                <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-                    {filteredItems.map((ur) => {
-                        const r = ur.record;
-                        if (!r) {
-                            return null;
-                        }
-
-                        return (
-                            <div
-                                key={ur.id}
-                                className="panel"
-                                style={{
-                                    padding: 12,
-                                    display: "flex",
-                                    gap: 12,
-                                    alignItems: "center"
-                                }}
-                            >
-                                <div className="thumb" style={{ width: 80, height: 80 }}>
-                                    {r.thumb_url ? (
-                                        <img className="thumbImg" src={r.thumb_url} alt={r.title} />
-                                    ) : null}
-                                </div>
-
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                                        <div style={{ fontWeight: 800 }}>{r.title}</div>
-                                        <span
-                                            className={`pill ${ur.list_type === "collection" ? "pillCollection" : "pillWishlist"}`}
-                                        >
-                                            {ur.list_type === "collection" ? "Collection" : "Wishlist"}
-                                        </span>
-                                    </div>
-
-                                    <div className="muted" style={{ marginTop: 4 }}>
-                                        {r.artist} · {r.year ?? "?"} · {r.country ?? "?"}
-                                    </div>
-
-                                    <div className="muted small" style={{ marginTop: 2 }}>
-                                        {r.label ?? "?"}
-                                        {r.catno ? ` · ${r.catno}` : ""}
-                                    </div>
-
-                                    <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
-                                        <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
-                                            Ouvrir
-                                        </Link>
-                                        <button
-                                            onClick={() => removeItem(ur)}
-                                            disabled={busyId === ur.id}
-                                            className="btn btnGhost"
-                                        >
-                                            Retirer
-                                        </button>
-                                    </div>
+                <div style={{ marginTop: 16 }}>
+                    {filter === "all" ? (
+                        <div style={{ display: "grid", gap: 16 }}>
+                            <div>
+                                <div style={{ fontWeight: 700, marginBottom: 8 }}>Collection</div>
+                                <div style={{ display: "grid", gap: 12 }}>
+                                    {collectionItems.length > 0 ? (
+                                        collectionItems.map(renderItem)
+                                    ) : (
+                                        <div className="muted">Aucun disque dans la collection.</div>
+                                    )}
                                 </div>
                             </div>
-                        );
-                    })}
+
+                            <div>
+                                <div style={{ fontWeight: 700, marginBottom: 8 }}>Wishlist</div>
+                                <div style={{ display: "grid", gap: 12 }}>
+                                    {wishlistItems.length > 0 ? (
+                                        wishlistItems.map(renderItem)
+                                    ) : (
+                                        <div className="muted">Aucun disque dans la wishlist.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ display: "grid", gap: 12 }}>
+                            {sortedItems.map(renderItem)}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

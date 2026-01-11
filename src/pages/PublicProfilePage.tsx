@@ -16,6 +16,7 @@ type PublicLibraryRow = {
 };
 
 type FilterType = "collection" | "wishlist" | "all";
+type SortKey = "title" | "artist" | "year";
 
 export default function PublicProfilePage() {
     const { username } = useParams();
@@ -29,6 +30,7 @@ export default function PublicProfilePage() {
     const [rows, setRows] = useState<PublicLibraryRow[]>([]);
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
+    const [sortKey, setSortKey] = useState<SortKey>("title");
     const loadSeqRef = useRef<number>(0);
 
     useEffect(() => {
@@ -118,8 +120,38 @@ export default function PublicProfilePage() {
             out = out.filter((r) => `${r.artist} ${r.title}`.toLowerCase().includes(needle));
         }
 
-        return out;
-    }, [rows, filter, searchText]);
+        const next = [...out];
+        const compareText = (a: string, b: string) => a.localeCompare(b, "fr", { sensitivity: "base" });
+
+        if (sortKey === "title") {
+            next.sort((a, b) => {
+                const titleCmp = compareText(a.title ?? "", b.title ?? "");
+                if (titleCmp !== 0) {
+                    return titleCmp;
+                }
+                return compareText(a.artist ?? "", b.artist ?? "");
+            });
+        } else if (sortKey === "artist") {
+            next.sort((a, b) => {
+                const artistCmp = compareText(a.artist ?? "", b.artist ?? "");
+                if (artistCmp !== 0) {
+                    return artistCmp;
+                }
+                return compareText(a.title ?? "", b.title ?? "");
+            });
+        } else if (sortKey === "year") {
+            next.sort((a, b) => {
+                const yearA = a.year ?? Number.POSITIVE_INFINITY;
+                const yearB = b.year ?? Number.POSITIVE_INFINITY;
+                if (yearA !== yearB) {
+                    return yearA - yearB;
+                }
+                return compareText(a.title ?? "", b.title ?? "");
+            });
+        }
+
+        return next;
+    }, [rows, filter, searchText, sortKey]);
 
     if (notFound) {
         return (
@@ -155,23 +187,42 @@ export default function PublicProfilePage() {
 
             <h1>Bibliothèque : {username}</h1>
 
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <button onClick={() => setFilter("all")} disabled={filter === "all"}>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <button onClick={() => setFilter("all")} disabled={filter === "all"} className="btn btnGhost">
                     Tout
                 </button>
-                <button onClick={() => setFilter("collection")} disabled={filter === "collection"}>
+                <button
+                    onClick={() => setFilter("collection")}
+                    disabled={filter === "collection"}
+                    className="btn btnGhost"
+                >
                     Collection
                 </button>
-                <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"}>
+                <button onClick={() => setFilter("wishlist")} disabled={filter === "wishlist"} className="btn btnGhost">
                     Wishlist
                 </button>
 
                 <div style={{ flex: 1 }} />
 
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="muted small">Trier par</span>
+                    <select
+                        value={sortKey}
+                        onChange={(e) => setSortKey(e.target.value as SortKey)}
+                        className="input"
+                        style={{ minWidth: 180 }}
+                    >
+                        <option value="title">Titre A-Z</option>
+                        <option value="artist">Artiste A-Z</option>
+                        <option value="year">Année</option>
+                    </select>
+                </label>
+
                 <input
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     placeholder="Filtrer par artiste ou titre"
+                    className="input"
                     style={{ minWidth: 240 }}
                 />
             </div>

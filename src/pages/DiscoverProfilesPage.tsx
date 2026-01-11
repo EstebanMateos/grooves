@@ -394,12 +394,6 @@ export default function DiscoverProfilesPage() {
 
                                     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                                         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                                            {r.is_public_collection ? (
-                                                <span className="pill pillCollection">Collection</span>
-                                            ) : null}
-                                            {r.is_public_wishlist ? (
-                                                <span className="pill pillWishlist">Wishlist</span>
-                                            ) : null}
                                             {countLabel ? <span className="muted small">{countLabel}</span> : null}
                                         </div>
                                         <button
@@ -451,12 +445,6 @@ export default function DiscoverProfilesPage() {
 
                                     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                                         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                                            {r.is_public_collection ? (
-                                                <span className="pill pillCollection">Collection</span>
-                                            ) : null}
-                                            {r.is_public_wishlist ? (
-                                                <span className="pill pillWishlist">Wishlist</span>
-                                            ) : null}
                                             {countLabel ? <span className="muted small">{countLabel}</span> : null}
                                         </div>
                                         <button
@@ -504,12 +492,6 @@ export default function DiscoverProfilesPage() {
 
                                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                                        {r.is_public_collection ? (
-                                            <span className="pill pillCollection">Collection</span>
-                                        ) : null}
-                                        {r.is_public_wishlist ? (
-                                            <span className="pill pillWishlist">Wishlist</span>
-                                        ) : null}
                                         {countLabel ? <span className="muted small">{countLabel}</span> : null}
                                     </div>
                                     <button
