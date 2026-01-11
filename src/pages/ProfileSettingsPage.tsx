@@ -541,7 +541,7 @@ export default function ProfileSettingsPage() {
             </div>
 
             <div className="panel" style={{ marginTop: 20, maxWidth: 520 }}>
-                <div className="panelTitle">Collection partagee</div>
+                <div className="panelTitle">Collection partagée</div>
                 <div className="muted" style={{ marginTop: 6 }}>
                     Partage la collection avec les personnes du meme foyer. La wishlist reste personnelle.
                 </div>
