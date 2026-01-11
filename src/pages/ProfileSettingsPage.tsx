@@ -485,7 +485,7 @@ export default function ProfileSettingsPage() {
                     <input
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="esteban"
+                        placeholder="my_pseudo"
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
@@ -497,7 +497,7 @@ export default function ProfileSettingsPage() {
 
                 <label style={{ display: "grid", gap: 6 }}>
                     <div style={{ fontSize: 14, opacity: 0.8 }}>Nom affiché</div>
-                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Esteban" />
+                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="MonPrenom" />
                 </label>
 
                 <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
