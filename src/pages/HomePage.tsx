@@ -5,6 +5,7 @@ import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import { useUserProfileSummary } from "../hooks/useUserProfileSummary";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { isDebugEnabled } from "../utils/supabaseDebug";
+import { getCollectionGroupId } from "../utils/collectionGroup";
 
 type RecordRow = {
     id: string;
@@ -18,9 +19,14 @@ type RecordRow = {
     catno: string | null;
 };
 
-type UserRecordBaseRow = {
-    list_type: "collection" | "wishlist";
+type CollectionGroupItemRow = {
     record_id: string;
+    created_at: string;
+};
+
+type WishlistRecordRow = {
+    record_id: string;
+    created_at: string;
 };
 
 type DiscogsReleaseSearchItem = {
@@ -121,26 +127,44 @@ export default function HomePage() {
         setLibraryError("");
 
         try {
-            debugTime("[HomePage] user_records");
+            const groupId = await getCollectionGroupId(k_user_id);
 
-            const { data: urData, error: urError } = await supabase
-                .from("user_records")
-                .select("list_type,record_id")
-                .eq("user_id", k_user_id)
-                .order("created_at", { ascending: false })
-                .limit(120);
+            debugTime("[HomePage] collection_group_items");
+            const emptyResponse = { data: [], error: null } as const;
+            const [collectionResp, wishlistResp] = await Promise.all([
+                groupId
+                    ? supabase
+                        .from("collection_group_items")
+                        .select("record_id,created_at")
+                        .eq("group_id", groupId)
+                        .order("created_at", { ascending: false })
+                        .limit(120)
+                    : Promise.resolve(emptyResponse),
+                supabase
+                    .from("user_records")
+                    .select("record_id,created_at")
+                    .eq("user_id", k_user_id)
+                    .eq("list_type", "wishlist")
+                    .order("created_at", { ascending: false })
+                    .limit(120)
+            ]);
+            debugTimeEnd("[HomePage] collection_group_items");
 
-            debugTimeEnd("[HomePage] user_records");
+            debugLog("collection count", collectionResp.data?.length, "error", collectionResp.error);
+            debugLog("wishlist count", wishlistResp.data?.length, "error", wishlistResp.error);
 
-            debugLog("user_records count", urData?.length, "error", urError);
-
-            if (urError) {
-                throw urError;
+            if (collectionResp.error) {
+                throw collectionResp.error;
+            }
+            if (wishlistResp.error) {
+                throw wishlistResp.error;
             }
 
-            const user_records = (urData ?? []) as UserRecordBaseRow[];
-            if (user_records.length === 0) {
-                debugLog("no user records");
+            const collectionRows = (collectionResp.data ?? []) as CollectionGroupItemRow[];
+            const wishlistRows = (wishlistResp.data ?? []) as WishlistRecordRow[];
+
+            if (collectionRows.length === 0 && wishlistRows.length === 0) {
+                debugLog("no library rows");
                 if (libraryLoadSeqRef.current === request_id) {
                     setCollectionItems([]);
                     setWishlistItems([]);
@@ -148,7 +172,9 @@ export default function HomePage() {
                 return;
             }
 
-            const record_ids = Array.from(new Set(user_records.map((x) => x.record_id)));
+            const record_ids = Array.from(
+                new Set([...collectionRows, ...wishlistRows].map((x) => x.record_id))
+            );
             debugLog("record_ids count", record_ids.length);
 
             debugTime("[HomePage] records");
@@ -174,14 +200,16 @@ export default function HomePage() {
             const collection: RecordRow[] = [];
             const wishlist: RecordRow[] = [];
 
-            for (const ur of user_records) {
-                const r = record_by_id.get(ur.record_id);
-                if (!r) {
-                    continue;
-                }
-                if (ur.list_type === "collection") {
+            for (const item of collectionRows) {
+                const r = record_by_id.get(item.record_id);
+                if (r) {
                     collection.push(r);
-                } else {
+                }
+            }
+
+            for (const item of wishlistRows) {
+                const r = record_by_id.get(item.record_id);
+                if (r) {
                     wishlist.push(r);
                 }
             }

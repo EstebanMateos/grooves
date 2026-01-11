@@ -5,6 +5,7 @@ import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import { isDebugEnabled } from "../utils/supabaseDebug";
+import { ensureCollectionGroupId, getCollectionGroupId } from "../utils/collectionGroup";
 import BackButton from "../components/BackButton";
 
 type DiscogsRelease = {
@@ -213,33 +214,36 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 }
             }
 
-            const { data: userRecordRow, error: userRecordError } = await supabase
-                .from("user_records")
-                .upsert(
-                    {
-                        user_id: userId,
-                        record_id: recordId,
-                        list_type: listType
-                    },
-                    { onConflict: "user_id,record_id,list_type" }
-                )
-                .select("id")
-                .single();
-
-            if (userRecordError) {
-                throw userRecordError;
-            }
-
-            if (listType === "collection" && userRecordRow?.id) {
+            if (listType === "collection") {
+                const groupId = await ensureCollectionGroupId();
                 const { error: collectionItemError } = await supabase
-                    .from("collection_items")
+                    .from("collection_group_items")
                     .upsert(
-                        { user_record_id: userRecordRow.id, rating: 0 },
-                        { onConflict: "user_record_id" }
+                        {
+                            group_id: groupId,
+                            record_id: recordId,
+                            added_by_user_id: userId
+                        },
+                        { onConflict: "group_id,record_id" }
                     );
 
                 if (collectionItemError) {
                     throw collectionItemError;
+                }
+            } else {
+                const { error: userRecordError } = await supabase
+                    .from("user_records")
+                    .upsert(
+                        {
+                            user_id: userId,
+                            record_id: recordId,
+                            list_type: "wishlist"
+                        },
+                        { onConflict: "user_id,record_id,list_type" }
+                    );
+
+                if (userRecordError) {
+                    throw userRecordError;
                 }
             }
 
@@ -275,40 +279,34 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 return;
             }
 
-            const { data: userRecordRow, error: userRecordFetchError } = await supabase
-                .from("user_records")
-                .select("id")
-                .eq("user_id", userId)
-                .eq("record_id", recordId)
-                .eq("list_type", listType)
-                .maybeSingle();
+            if (listType === "collection") {
+                const groupId = await getCollectionGroupId(userId);
+                if (!groupId) {
+                    await library.reload();
+                    setActionStatus("Retiré.");
+                    return;
+                }
 
-            if (userRecordFetchError) {
-                throw userRecordFetchError;
-            }
-
-            const userRecordId = userRecordRow?.id ?? null;
-
-            if (listType === "collection" && userRecordId) {
                 const { error: collError } = await supabase
-                    .from("collection_items")
+                    .from("collection_group_items")
                     .delete()
-                    .eq("user_record_id", userRecordId);
+                    .eq("group_id", groupId)
+                    .eq("record_id", recordId);
 
                 if (collError) {
                     throw collError;
                 }
-            }
+            } else {
+                const { error: delError } = await supabase
+                    .from("user_records")
+                    .delete()
+                    .eq("user_id", userId)
+                    .eq("record_id", recordId)
+                    .eq("list_type", "wishlist");
 
-            const { error: delError } = await supabase
-                .from("user_records")
-                .delete()
-                .eq("user_id", userId)
-                .eq("record_id", recordId)
-                .eq("list_type", listType);
-
-            if (delError) {
-                throw delError;
+                if (delError) {
+                    throw delError;
+                }
             }
 
             await library.reload();

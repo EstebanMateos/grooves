@@ -4,6 +4,7 @@ import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 import { isDebugEnabled } from "../utils/supabaseDebug";
+import { getCollectionGroupId } from "../utils/collectionGroup";
 import BackButton from "../components/BackButton";
 
 type RecordRow = {
@@ -18,14 +19,19 @@ type RecordRow = {
     catno: string | null;
 };
 
-type UserRecordBaseRow = {
+type CollectionGroupItemRow = {
     id: string;
-    list_type: "collection" | "wishlist";
     record_id: string;
     created_at: string;
 };
 
-type UserRecordRow = {
+type WishlistRecordRow = {
+    id: string;
+    record_id: string;
+    created_at: string;
+};
+
+type LibraryItemRow = {
     id: string;
     list_type: "collection" | "wishlist";
     record_id: string;
@@ -38,16 +44,16 @@ type SortKey = "recent" | "title" | "artist" | "year";
 
 type CachedLibrary = {
     updated_at: string;
-    items: UserRecordRow[];
+    items: LibraryItemRow[];
 };
 
-const LIBRARY_CACHE_PREFIX = "grooves:library_cache:";
+const LIBRARY_CACHE_PREFIX = "grooves:library_cache_v2:";
 
 export default function MyLibraryPage() {
     const library = useUserLibraryIndex();
     const auth = useAuthSession();
 
-    const [items, setItems] = useState<UserRecordRow[]>([]);
+    const [items, setItems] = useState<LibraryItemRow[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [error, setError] = useState<string>("");
@@ -55,6 +61,7 @@ export default function MyLibraryPage() {
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
     const [sortKey, setSortKey] = useState<SortKey>("recent");
+    const [collectionGroupId, setCollectionGroupId] = useState<string | null>(null);
     const activeUserIdRef = useRef<string | null>(null);
     const loadSeqRef = useRef<number>(0);
 
@@ -74,7 +81,7 @@ export default function MyLibraryPage() {
         }
     }
 
-    function writeCache(userId: string, nextItems: UserRecordRow[]) {
+    function writeCache(userId: string, nextItems: LibraryItemRow[]) {
         try {
             const payload: CachedLibrary = {
                 updated_at: new Date().toISOString(),
@@ -92,6 +99,7 @@ export default function MyLibraryPage() {
         setError("");
         setBusyId(null);
         setLoading(false);
+        setCollectionGroupId(null);
     }
 
     async function load(userId: string) {
@@ -111,21 +119,42 @@ export default function MyLibraryPage() {
         setStatus("");
 
         try {
-            const q = supabase
-                .from("user_records")
-                .select("id,list_type,record_id,created_at")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false })
-                .limit(400);
+            const groupId = await getCollectionGroupId(userId);
+            if (isStale()) {
+                return;
+            }
+            setCollectionGroupId(groupId);
 
-            const { data: urData, error: urError } = await q;
+            const emptyResponse = { data: [], error: null } as const;
+            const [collectionResp, wishlistResp] = await Promise.all([
+                groupId
+                    ? supabase
+                        .from("collection_group_items")
+                        .select("id,record_id,created_at")
+                        .eq("group_id", groupId)
+                        .order("created_at", { ascending: false })
+                        .limit(400)
+                    : Promise.resolve(emptyResponse),
+                supabase
+                    .from("user_records")
+                    .select("id,record_id,created_at")
+                    .eq("user_id", userId)
+                    .eq("list_type", "wishlist")
+                    .order("created_at", { ascending: false })
+                    .limit(400)
+            ]);
 
-            if (urError) {
-                throw urError;
+            if (collectionResp.error) {
+                throw collectionResp.error;
+            }
+            if (wishlistResp.error) {
+                throw wishlistResp.error;
             }
 
-            const userRecords = (urData ?? []) as UserRecordBaseRow[];
-            if (userRecords.length === 0) {
+            const collectionItems = (collectionResp.data ?? []) as CollectionGroupItemRow[];
+            const wishlistItems = (wishlistResp.data ?? []) as WishlistRecordRow[];
+
+            if (collectionItems.length === 0 && wishlistItems.length === 0) {
                 if (isStale()) {
                     return;
                 }
@@ -134,7 +163,9 @@ export default function MyLibraryPage() {
                 return;
             }
 
-            const recordIds = Array.from(new Set(userRecords.map((x) => x.record_id)));
+            const recordIds = Array.from(
+                new Set([...collectionItems, ...wishlistItems].map((x) => x.record_id))
+            );
 
             const { data: recData, error: recError } = await supabase
                 .from("records")
@@ -150,13 +181,22 @@ export default function MyLibraryPage() {
                 recordById.set(r.id, r);
             }
 
-            const merged: UserRecordRow[] = userRecords.map((ur) => ({
-                id: ur.id,
-                list_type: ur.list_type,
-                record_id: ur.record_id,
-                record: recordById.get(ur.record_id) ?? null,
-                created_at: ur.created_at
-            }));
+            const merged: LibraryItemRow[] = [
+                ...collectionItems.map((item) => ({
+                    id: item.id,
+                    list_type: "collection",
+                    record_id: item.record_id,
+                    record: recordById.get(item.record_id) ?? null,
+                    created_at: item.created_at
+                })),
+                ...wishlistItems.map((item) => ({
+                    id: item.id,
+                    list_type: "wishlist",
+                    record_id: item.record_id,
+                    record: recordById.get(item.record_id) ?? null,
+                    created_at: item.created_at
+                }))
+            ];
 
             if (isStale()) {
                 return;
@@ -201,7 +241,7 @@ export default function MyLibraryPage() {
         void load(auth.user_id);
     }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
-    async function removeItem(userRecord: UserRecordRow) {
+    async function removeItem(userRecord: LibraryItemRow) {
         setError("");
         setStatus("");
         setBusyId(userRecord.id);
@@ -217,28 +257,34 @@ export default function MyLibraryPage() {
             const userId = auth.user_id;
 
             if (userRecord.list_type === "collection") {
+                if (!collectionGroupId) {
+                    throw new Error("Groupe de collection introuvable.");
+                }
                 const { error: collError } = await supabase
-                    .from("collection_items")
+                    .from("collection_group_items")
                     .delete()
-                    .eq("user_record_id", userRecord.id);
+                    .eq("id", userRecord.id)
+                    .eq("group_id", collectionGroupId);
 
                 if (collError) {
                     throw collError;
                 }
-            }
+            } else {
+                const { error: delError } = await supabase
+                    .from("user_records")
+                    .delete()
+                    .eq("id", userRecord.id)
+                    .eq("user_id", userId);
 
-            const { error: delError } = await supabase
-                .from("user_records")
-                .delete()
-                .eq("id", userRecord.id)
-                .eq("user_id", userId);
-
-            if (delError) {
-                throw delError;
+                if (delError) {
+                    throw delError;
+                }
             }
 
             setItems((prev) => {
-                const next = prev.filter((x) => x.id !== userRecord.id);
+                const next = prev.filter(
+                    (x) => !(x.id === userRecord.id && x.list_type === userRecord.list_type)
+                );
                 writeCache(userId, next);
                 return next;
             });
@@ -321,7 +367,7 @@ export default function MyLibraryPage() {
     const collectionItems = filter === "all" ? sortedItems.filter((ur) => ur.list_type === "collection") : [];
     const wishlistItems = filter === "all" ? sortedItems.filter((ur) => ur.list_type === "wishlist") : [];
 
-    const renderItem = (ur: UserRecordRow) => {
+    const renderItem = (ur: LibraryItemRow) => {
         const r = ur.record;
         if (!r) {
             return null;

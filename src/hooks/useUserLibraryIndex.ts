@@ -3,6 +3,7 @@ import {useEffect, useRef, useState} from 'react';
 import {supabase} from '../supabaseClient';
 import {isDebugEnabled} from '../utils/supabaseDebug';
 import {useAuthSession} from './useAuthSession';
+import {getCollectionGroupId} from '../utils/collectionGroup';
 
 type LibraryIndex = {
   collection_ids: Set<number>; wishlist_ids: Set<number>;
@@ -46,26 +47,40 @@ export function useUserLibraryIndex() {
 
       activeUserIdRef.current = userId;
 
-      const {data, error} =
-          await supabase.from('user_records')
-              .select('list_type, records ( discogs_release_id )')
-              .eq('user_id', userId);
-
-      if (error) {
-        throw error;
-      }
-
       const collection_ids = new Set<number>();
       const wishlist_ids = new Set<number>();
 
-      (data ?? []).forEach((row: any) => {
+      const groupId = await getCollectionGroupId(userId);
+      const emptyResponse = {data: [], error: null} as const;
+      const [collectionResp, wishlistResp] = await Promise.all([
+        groupId ?
+            supabase.from('collection_group_items')
+                .select('records ( discogs_release_id )')
+                .eq('group_id', groupId) :
+            Promise.resolve(emptyResponse),
+        supabase.from('user_records')
+            .select('records ( discogs_release_id )')
+            .eq('user_id', userId)
+            .eq('list_type', 'wishlist')
+      ]);
+
+      if (collectionResp.error) {
+        throw collectionResp.error;
+      }
+      if (wishlistResp.error) {
+        throw wishlistResp.error;
+      }
+
+      (collectionResp.data ?? []).forEach((row: any) => {
         const rid = row.records?.discogs_release_id;
-        if (!rid) {
-          return;
-        }
-        if (row.list_type === 'collection') {
+        if (rid) {
           collection_ids.add(rid);
-        } else if (row.list_type === 'wishlist') {
+        }
+      });
+
+      (wishlistResp.data ?? []).forEach((row: any) => {
+        const rid = row.records?.discogs_release_id;
+        if (rid) {
           wishlist_ids.add(rid);
         }
       });
