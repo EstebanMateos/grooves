@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { isDebugEnabled } from "../utils/supabaseDebug";
+import { useAuthSession } from "./useAuthSession";
 
 type UserProfileSummary = {
     loading: boolean;
@@ -8,36 +10,51 @@ type UserProfileSummary = {
 };
 
 export function useUserProfileSummary(): UserProfileSummary {
+    const auth = useAuthSession();
     const [state, setState] = useState<UserProfileSummary>({
         loading: true,
         username: null,
         display_name: null
     });
     const requestIdRef = useRef<number>(0);
+    const activeUserIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
+        const requestId = requestIdRef.current + 1;
+        requestIdRef.current = requestId;
+        const userId = auth.user_id;
+        const isStale = () =>
+            requestIdRef.current !== requestId || activeUserIdRef.current !== userId;
+
+        if (auth.is_loading) {
+            return () => {
+                isMounted = false;
+            };
+        }
+
+        if (!auth.is_authenticated || !userId) {
+            activeUserIdRef.current = null;
+            setState({ loading: false, username: null, display_name: null });
+            return () => {
+                isMounted = false;
+            };
+        }
+
+        const keepPrevious = activeUserIdRef.current === userId;
+        activeUserIdRef.current = userId;
+        setState((prev) => ({
+            loading: true,
+            username: keepPrevious ? prev.username : null,
+            display_name: keepPrevious ? prev.display_name : null
+        }));
 
         async function load() {
-            const requestId = requestIdRef.current + 1;
-            requestIdRef.current = requestId;
-            const isStale = () => requestIdRef.current !== requestId;
-            setState((prev) => ({ ...prev, loading: true }));
             try {
-                const { data: sessionData } = await supabase.auth.getSession();
-                const session = sessionData.session;
-
-                if (!session) {
-                    if (isMounted && !isStale()) {
-                        setState({ loading: false, username: null, display_name: null });
-                    }
-                    return;
-                }
-
                 const { data, error } = await supabase
                     .from("profiles")
                     .select("username,display_name")
-                    .eq("id", session.user.id)
+                    .eq("id", userId)
                     .maybeSingle();
 
                 if (!isMounted || isStale()) {
@@ -58,19 +75,19 @@ export function useUserProfileSummary(): UserProfileSummary {
                 if (!isMounted || isStale()) {
                     return;
                 }
-                console.error("[useUserProfileSummary] load failed", error);
+                if (isDebugEnabled()) {
+                    console.error("[useUserProfileSummary] load failed", error);
+                }
                 setState({ loading: false, username: null, display_name: null });
             }
         }
 
-        load();
+        void load();
 
-        const { data: sub } = supabase.auth.onAuthStateChange(() => load());
         return () => {
             isMounted = false;
-            sub.subscription.unsubscribe();
         };
-    }, []);
+    }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     return state;
 }

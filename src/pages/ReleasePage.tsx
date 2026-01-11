@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
+import { isDebugEnabled } from "../utils/supabaseDebug";
 import BackButton from "../components/BackButton";
 
 type DiscogsRelease = {
@@ -54,6 +56,7 @@ function formatFormats(release: DiscogsRelease): string {
 
 export default function ReleasePage({ onRequireAuth }: Props) {
     const library = useUserLibraryIndex();
+    const auth = useAuthSession();
 
     const { discogsReleaseId } = useParams();
     const [release, setRelease] = useState<DiscogsRelease | null>(null);
@@ -63,16 +66,6 @@ export default function ReleasePage({ onRequireAuth }: Props) {
 
     const [actionStatus, setActionStatus] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
-
-    function isAuthSessionMissing(err: unknown): boolean {
-        if (err && typeof err === "object" && "name" in err) {
-            if ((err as { name?: string }).name === "AuthSessionMissingError") {
-                return true;
-            }
-        }
-        const message = err instanceof Error ? err.message : String(err);
-        return message.toLowerCase().includes("auth session missing");
-    }
 
     useEffect(() => {
         const controller = new AbortController();
@@ -122,32 +115,16 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         };
     }, [discogsReleaseId]);
 
-    async function requireSession(): Promise<{ user_id: string } | null> {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-            console.warn("[ReleasePage] getSession failed", sessionError);
-            setActionStatus(String(sessionError));
+    function requireUserId(): string | null {
+        if (auth.is_loading) {
+            setActionStatus("Vérification de la session…");
             return null;
         }
-        let session = data.session ?? null;
-        if (!session) {
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError) {
-                console.warn("[ReleasePage] refreshSession failed", refreshError);
-                if (isAuthSessionMissing(refreshError)) {
-                    onRequireAuth();
-                    return null;
-                }
-                setActionStatus(String(refreshError));
-                return null;
-            }
-            session = refreshData.session ?? null;
-        }
-        if (!session) {
+        if (!auth.is_authenticated || !auth.user_id) {
             onRequireAuth();
             return null;
         }
-        return { user_id: session.user.id };
+        return auth.user_id;
     }
 
     async function getRecordIdByDiscogsReleaseId(discogsReleaseIdValue: number): Promise<string | null> {
@@ -201,14 +178,13 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         }
 
         setActionStatus("");
+        const userId = requireUserId();
+        if (!userId) {
+            return;
+        }
         setActionLoading(true);
 
         try {
-            const session = await requireSession();
-            if (!session) {
-                return;
-            }
-
             const inCollectionNow = library.collection_ids.has(release.id);
             const inWishlistNow = library.wishlist_ids.has(release.id);
 
@@ -222,7 +198,6 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 return;
             }
 
-            const userId = session.user_id;
             const recordId = await upsertRecordFromRelease(release);
 
             if (listType === "collection" && inWishlistNow) {
@@ -271,7 +246,9 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             await library.reload();
             setActionStatus(listType === "wishlist" ? "Ajouté à la wishlist." : "Ajouté à la collection.");
         } catch (e) {
-            console.error("[ReleasePage] addToList failed", e);
+            if (isDebugEnabled()) {
+                console.error("[ReleasePage] addToList failed", e);
+            }
             setActionStatus(String(e));
         } finally {
             setActionLoading(false);
@@ -284,16 +261,13 @@ export default function ReleasePage({ onRequireAuth }: Props) {
         }
 
         setActionStatus("");
+        const userId = requireUserId();
+        if (!userId) {
+            return;
+        }
         setActionLoading(true);
 
         try {
-            const session = await requireSession();
-            if (!session) {
-                return;
-            }
-
-            const userId = session.user_id;
-
             const recordId = await getRecordIdByDiscogsReleaseId(release.id);
             if (!recordId) {
                 await library.reload();
@@ -340,7 +314,9 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             await library.reload();
             setActionStatus(listType === "wishlist" ? "Retiré de la wishlist." : "Retiré de la collection.");
         } catch (e) {
-            console.error("[ReleasePage] removeFromList failed", e);
+            if (isDebugEnabled()) {
+                console.error("[ReleasePage] removeFromList failed", e);
+            }
             setActionStatus(String(e));
         } finally {
             setActionLoading(false);
@@ -352,24 +328,12 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             return;
         }
 
-        setActionStatus("");
-        setActionLoading(true);
-
-        try {
-            const session = await requireSession();
-            if (!session) {
-                return;
-            }
-
-            if (library.collection_ids.has(release.id)) {
-                setActionStatus("Déjà dans la collection.");
-                return;
-            }
-
-            await addToList("collection");
-        } finally {
-            setActionLoading(false);
+        if (library.collection_ids.has(release.id)) {
+            setActionStatus("Déjà dans la collection.");
+            return;
         }
+
+        await addToList("collection");
     }
 
     if (loading) {

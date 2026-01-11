@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 import BackButton from "../components/BackButton";
 
@@ -12,6 +13,7 @@ type ProfileRow = {
 };
 
 export default function ProfileSettingsPage() {
+    const auth = useAuthSession();
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
     const [status, setStatus] = useState<string>("");
@@ -21,30 +23,51 @@ export default function ProfileSettingsPage() {
     const [isPublicCollection, setIsPublicCollection] = useState<boolean>(true);
     const [isPublicWishlist, setIsPublicWishlist] = useState<boolean>(true);
     const navigate = useNavigate();
+    const requestIdRef = useRef<number>(0);
 
     useEffect(() => {
+        let isMounted = true;
+        const requestId = requestIdRef.current + 1;
+        requestIdRef.current = requestId;
+        const isStale = () => requestIdRef.current !== requestId;
+
+        if (auth.is_loading) {
+            return () => {
+                isMounted = false;
+            };
+        }
+
+        if (!auth.is_authenticated || !auth.user_id) {
+            setLoading(false);
+            setError("Merci de te connecter.");
+            setStatus("");
+            setUsername("");
+            setDisplayName("");
+            setIsPublicCollection(true);
+            setIsPublicWishlist(true);
+            return () => {
+                isMounted = false;
+            };
+        }
+
         async function load() {
             setLoading(true);
             setError("");
             setStatus("");
 
             try {
-                const { data: sessionData } = await supabase.auth.getSession();
-                const session = sessionData.session;
-
-                if (!session) {
-                    setError("Merci de te connecter.");
-                    return;
-                }
-
                 const { data, error: dbError } = await supabase
                     .from("profiles")
                     .select("id,username,display_name,is_public_collection,is_public_wishlist")
-                    .eq("id", session.user.id)
+                    .eq("id", auth.user_id)
                     .maybeSingle();
 
                 if (dbError) {
                     throw dbError;
+                }
+
+                if (!isMounted || isStale()) {
+                    return;
                 }
 
                 if (data) {
@@ -56,14 +79,22 @@ export default function ProfileSettingsPage() {
 
                 }
             } catch (e) {
+                if (!isMounted || isStale()) {
+                    return;
+                }
                 setError(String(e));
             } finally {
-                setLoading(false);
+                if (isMounted && !isStale()) {
+                    setLoading(false);
+                }
             }
         }
 
-        load();
-    }, []);
+        void load();
+        return () => {
+            isMounted = false;
+        };
+    }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     function normalizeUsername(raw: string): string {
         return raw
@@ -79,10 +110,11 @@ export default function ProfileSettingsPage() {
         setStatus("");
 
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
-
-            if (!session) {
+            if (auth.is_loading) {
+                setError("Vérification de la session…");
+                return;
+            }
+            if (!auth.is_authenticated || !auth.user_id) {
                 setError("Merci de te connecter.");
                 return;
             }
@@ -94,7 +126,7 @@ export default function ProfileSettingsPage() {
             }
 
             const payload = {
-                id: session.user.id,
+                id: auth.user_id,
                 username: normalized,
                 display_name: displayName.trim() ? displayName.trim() : null,
                 is_public_collection: isPublicCollection,

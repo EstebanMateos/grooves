@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { isDebugEnabled } from "../utils/supabaseDebug";
+import { useAuthSession } from "../hooks/useAuthSession";
 import BackButton from "../components/BackButton";
 
 type PublicProfileRow = {
@@ -25,6 +27,7 @@ type SupabaseLikeError = {
 };
 
 export default function DiscoverProfilesPage() {
+    const auth = useAuthSession();
     const [query, setQuery] = useState<string>("");
     const [rows, setRows] = useState<PublicProfileRow[]>([]);
     const [defaultRows, setDefaultRows] = useState<PublicProfileRow[]>([]);
@@ -92,7 +95,9 @@ export default function DiscoverProfilesPage() {
             }
             const formatted = formatError(e);
             setError(formatted.status ? `${formatted.message} (status ${formatted.status})` : formatted.message);
-            console.error("[DiscoverProfilesPage] search failed", e);
+            if (isDebugEnabled()) {
+                console.error("[DiscoverProfilesPage] search failed", e);
+            }
         } finally {
             if (!isStale()) {
                 setLoading(false);
@@ -133,30 +138,21 @@ export default function DiscoverProfilesPage() {
                 setError(
                     formatted.status ? `${formatted.message} (status ${formatted.status})` : formatted.message
                 );
-                console.error("[DiscoverProfilesPage] loadDefault fallback failed", fallback);
+                if (isDebugEnabled()) {
+                    console.error("[DiscoverProfilesPage] loadDefault fallback failed", fallback);
+                }
             }
         } finally {
             setDefaultLoading(false);
         }
     }
 
-    async function loadFavorites() {
+    async function loadFavorites(userId: string) {
         const requestId = favoritesLoadSeqRef.current + 1;
         favoritesLoadSeqRef.current = requestId;
         const isStale = () => favoritesLoadSeqRef.current !== requestId;
         setFavoritesLoading(true);
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
-            if (!session) {
-                if (isStale()) {
-                    return;
-                }
-                setFavorites([]);
-                setFavoriteRows([]);
-                return;
-            }
-
             const { data, error: favError } = await supabase
                 .from("profile_favorites")
                 .select(
@@ -170,7 +166,7 @@ export default function DiscoverProfilesPage() {
                     )
                 `
                 )
-                .eq("user_id", session.user.id);
+                .eq("user_id", userId);
 
             if (favError) {
                 throw favError;
@@ -193,7 +189,9 @@ export default function DiscoverProfilesPage() {
             setFavoriteRows([]);
             const formatted = formatError(e);
             setError(formatted.status ? `${formatted.message} (status ${formatted.status})` : formatted.message);
-            console.error("[DiscoverProfilesPage] loadFavorites failed", e);
+            if (isDebugEnabled()) {
+                console.error("[DiscoverProfilesPage] loadFavorites failed", e);
+            }
         } finally {
             if (!isStale()) {
                 setFavoritesLoading(false);
@@ -207,12 +205,15 @@ export default function DiscoverProfilesPage() {
         }
 
         setFavoriteStatus("");
-        const { data: sessionData } = await supabase.auth.getSession();
-        const session = sessionData.session;
-        if (!session) {
+        if (auth.is_loading) {
+            setFavoriteStatus("Vérification de la session…");
+            return;
+        }
+        if (!auth.is_authenticated || !auth.user_id) {
             setFavoriteStatus("Connecte-toi pour ajouter des favoris.");
             return;
         }
+        const userId = auth.user_id;
 
         const wasFavorite = favorites.includes(username);
         const optimistic = wasFavorite ? favorites.filter((u) => u !== username) : [...favorites, username];
@@ -236,28 +237,32 @@ export default function DiscoverProfilesPage() {
             const { error: delError } = await supabase
                 .from("profile_favorites")
                 .delete()
-                .eq("user_id", session.user.id)
-                .eq("favorite_user_id", profileRow.id);
+                    .eq("user_id", userId)
+                    .eq("favorite_user_id", profileRow.id);
             if (delError) {
                 setFavorites(favorites);
                 setFavoriteStatus(delError.message);
-                console.error("[DiscoverProfilesPage] delete favorite failed", delError);
+                if (isDebugEnabled()) {
+                    console.error("[DiscoverProfilesPage] delete favorite failed", delError);
+                }
             }
         } else {
             const { error: insError } = await supabase
                 .from("profile_favorites")
                 .upsert(
-                    { user_id: session.user.id, favorite_user_id: profileRow.id },
+                    { user_id: userId, favorite_user_id: profileRow.id },
                     { onConflict: "user_id,favorite_user_id", ignoreDuplicates: true }
                 );
             if (insError) {
                 setFavorites(favorites);
                 setFavoriteStatus(insError.message);
-                console.error("[DiscoverProfilesPage] add favorite failed", insError);
+                if (isDebugEnabled()) {
+                    console.error("[DiscoverProfilesPage] add favorite failed", insError);
+                }
             }
         }
 
-        await loadFavorites();
+        await loadFavorites(userId);
         setFavoriteBusy(null);
     }
 
@@ -278,12 +283,17 @@ export default function DiscoverProfilesPage() {
     }, [query]);
 
     useEffect(() => {
-        loadFavorites();
-        const { data: sub } = supabase.auth.onAuthStateChange(() => loadFavorites());
-        return () => {
-            sub.subscription.unsubscribe();
-        };
-    }, []);
+        if (auth.is_loading) {
+            return;
+        }
+        if (!auth.is_authenticated || !auth.user_id) {
+            setFavorites([]);
+            setFavoriteRows([]);
+            setFavoritesLoading(false);
+            return;
+        }
+        void loadFavorites(auth.user_id);
+    }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     const results = useMemo(() => {
         const seen = new Set<string>();

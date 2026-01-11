@@ -1,4 +1,4 @@
-import {useSyncExternalStore} from 'react';
+// src/auth/authStore.ts
 import type {Session} from '@supabase/supabase-js';
 import {supabase} from '../supabaseClient';
 
@@ -25,42 +25,42 @@ const listeners = new Set<Listener>();
 let started = false;
 let subscription: {unsubscribe: () => void}|null = null;
 
-function emit(): void {
-  for (const listener of listeners) {
-    listener();
+function emit() {
+  for (const l of listeners) {
+    l();
   }
 }
 
-function setState(partial: Partial<AuthSessionState>): void {
-  state = {...state, ...partial};
+function setState(next: Partial<AuthSessionState>) {
+  state = {...state, ...next};
   emit();
 }
 
-function applySession(session: Session|null, event: string|null): void {
+function setSession(next_session: Session|null, event: string|null) {
   setState({
     is_loading: false,
-    session,
     last_event: event,
-    is_authenticated: !!session,
-    user_id: session?.user.id ?? null,
-    user_email: session?.user.email ?? null,
+    session: next_session,
+    is_authenticated: !!next_session,
+    user_id: next_session?.user.id ?? null,
+    user_email: next_session?.user.email ?? null,
   });
 }
 
-async function bootstrap(): Promise<void> {
+async function bootstrap() {
   try {
     const {data, error} = await supabase.auth.getSession();
     if (error) {
-      applySession(null, 'GET_SESSION_ERROR');
+      setSession(null, 'GET_SESSION_ERROR');
       return;
     }
-    applySession(data.session ?? null, 'GET_SESSION');
+    setSession(data.session ?? null, 'GET_SESSION');
   } catch {
-    applySession(null, 'GET_SESSION_THROW');
+    setSession(null, 'GET_SESSION_THROW');
   }
 }
 
-function startStore(): void {
+export function startAuthStore() {
   if (started) {
     return;
   }
@@ -69,25 +69,38 @@ function startStore(): void {
   void bootstrap();
 
   const {data} = supabase.auth.onAuthStateChange((event, session) => {
-    applySession(session ?? null, event);
+    setSession(session ?? null, event);
   });
 
   subscription = data.subscription;
 }
 
-function getSnapshot(): AuthSessionState {
+export function stopAuthStoreForTestsOnly() {
+  if (subscription) {
+    subscription.unsubscribe();
+    subscription = null;
+  }
+  started = false;
+  state = {
+    is_loading: true,
+    is_authenticated: false,
+    user_id: null,
+    user_email: null,
+    session: null,
+    last_event: null,
+  };
+  emit();
+}
+
+export function getAuthSnapshot(): AuthSessionState {
   return state;
 }
 
-function subscribe(listener: Listener): () => void {
+export function subscribeAuth(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-startStore();
-
-export function useAuthSession(): AuthSessionState {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
+startAuthStore();

@@ -2,10 +2,12 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 
 export default function LoginPage() {
     const navigate = useNavigate();
+    const auth = useAuthSession();
     const [mode, setMode] = useState<"signin" | "signup">("signin");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -129,16 +131,13 @@ export default function LoginPage() {
                 return;
             }
 
-            let session: Session | null = data.session ?? null;
-            if (!session) {
-                const { data: sessionData } = await supabase.auth.getSession();
-                session = sessionData.session ?? null;
-            }
+            const session: Session | null = data.session ?? null;
+            const userId = session?.user?.id ?? data.user?.id ?? auth.user_id ?? null;
             let hasProfile = false;
             let isAnon = false;
 
-            if (session) {
-                const profile = await ensureProfileUsername(session.user.id);
+            if (userId) {
+                const profile = await ensureProfileUsername(userId);
                 hasProfile = !!profile.username;
                 isAnon = profile.isAnon;
             }
@@ -164,6 +163,16 @@ export default function LoginPage() {
         } else {
             signIn();
         }
+    }
+
+    if (auth.is_loading) {
+        return (
+            <div className="authPage">
+                <div className="authCard">
+                    <div className="muted">Vérification de la session…</div>
+                </div>
+            </div>
+        );
     }
 
     return (

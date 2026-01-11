@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import { useUserProfileSummary } from "../hooks/useUserProfileSummary";
+import { useAuthSession } from "../hooks/useAuthSession";
+import { isDebugEnabled } from "../utils/supabaseDebug";
 
 type RecordRow = {
     id: string;
@@ -43,8 +45,47 @@ type DiscogsSearchResponse = {
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const auth = useAuthSession();
     const profile = useUserProfileSummary();
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+    const debugEnabled = isDebugEnabled();
+    const debugLog = (...args: unknown[]) => {
+        if (debugEnabled) {
+            console.log(...args);
+        }
+    };
+    const debugWarn = (...args: unknown[]) => {
+        if (debugEnabled) {
+            console.warn(...args);
+        }
+    };
+    const debugError = (...args: unknown[]) => {
+        if (debugEnabled) {
+            console.error(...args);
+        }
+    };
+    const debugGroup = (label: string) => {
+        if (debugEnabled) {
+            console.group(label);
+        }
+    };
+    const debugGroupEnd = () => {
+        if (debugEnabled) {
+            console.groupEnd();
+        }
+    };
+    const debugTime = (label: string) => {
+        if (debugEnabled) {
+            console.time(label);
+        }
+    };
+    const debugTimeEnd = (label: string) => {
+        if (debugEnabled) {
+            console.timeEnd(label);
+        }
+    };
+
+    const is_authenticated = !auth.is_loading && auth.is_authenticated;
+    const user_id = auth.user_id;
 
     const [libraryLoading, setLibraryLoading] = useState<boolean>(false);
     const [libraryError, setLibraryError] = useState<string>("");
@@ -60,116 +101,81 @@ export default function HomePage() {
     const [page, setPage] = useState<number>(1);
     const [pagesTotal, setPagesTotal] = useState<number>(1);
     const [itemsTotal, setItemsTotal] = useState<number>(0);
+
     const libraryLoadSeqRef = useRef<number>(0);
-    const authUserIdRef = useRef<string | null>(null);
-    const authSeqRef = useRef<number>(0);
+    const libraryActiveRef = useRef<number>(0);
     const searchLoadSeqRef = useRef<number>(0);
 
-    useEffect(() => {
-        let isMounted = true;
-        const bumpAuthSeq = () => {
-            authSeqRef.current += 1;
-            return authSeqRef.current;
-        };
+    async function loadLibraryPreview(k_user_id: string) {
+        const request_id = libraryLoadSeqRef.current + 1;
+        libraryLoadSeqRef.current = request_id;
 
-        async function init() {
-            const seq = bumpAuthSeq();
-            try {
-                const { data } = await supabase.auth.getSession();
-                if (!isMounted || authSeqRef.current !== seq) {
-                    return;
-                }
-                authUserIdRef.current = data.session?.user.id ?? null;
-                setIsAuthenticated(!!data.session);
-            } catch (error) {
-                if (!isMounted || authSeqRef.current !== seq) {
-                    return;
-                }
-                console.error("[HomePage] getSession failed", error);
-                authUserIdRef.current = null;
-                setIsAuthenticated(false);
-            }
-        }
+        libraryActiveRef.current += 1;
 
-        init();
+        debugGroup("[HomePage] loadLibraryPreview");
+        debugLog("request_id", request_id);
+        debugLog("active_requests", libraryActiveRef.current);
+        debugLog("user_id", k_user_id);
 
-        const {
-            data: { subscription }
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            const seq = bumpAuthSeq();
-            if (!isMounted || authSeqRef.current !== seq) {
-                return;
-            }
-            authUserIdRef.current = session?.user.id ?? null;
-            setIsAuthenticated(!!session);
-        });
-
-        return () => {
-            isMounted = false;
-            subscription.unsubscribe();
-        };
-    }, []);
-
-    async function loadLibraryPreview() {
-        const requestId = libraryLoadSeqRef.current + 1;
-        libraryLoadSeqRef.current = requestId;
-        const isStale = () => libraryLoadSeqRef.current !== requestId;
         setLibraryLoading(true);
         setLibraryError("");
 
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const session = sessionData.session;
-
-            if (!session) {
-                if (isStale()) {
-                    return;
-                }
-                setCollectionItems([]);
-                setWishlistItems([]);
-                return;
-            }
-            const userId = session.user.id;
+            debugTime("[HomePage] user_records");
 
             const { data: urData, error: urError } = await supabase
                 .from("user_records")
                 .select("list_type,record_id")
-                .eq("user_id", session.user.id)
+                .eq("user_id", k_user_id)
                 .order("created_at", { ascending: false })
                 .limit(120);
+
+            debugTimeEnd("[HomePage] user_records");
+
+            debugLog("user_records count", urData?.length, "error", urError);
 
             if (urError) {
                 throw urError;
             }
 
-            const userRecords = (urData ?? []) as UserRecordBaseRow[];
-            if (userRecords.length === 0) {
-                setCollectionItems([]);
-                setWishlistItems([]);
+            const user_records = (urData ?? []) as UserRecordBaseRow[];
+            if (user_records.length === 0) {
+                debugLog("no user records");
+                if (libraryLoadSeqRef.current === request_id) {
+                    setCollectionItems([]);
+                    setWishlistItems([]);
+                }
                 return;
             }
 
-            const recordIds = Array.from(new Set(userRecords.map((x) => x.record_id)));
+            const record_ids = Array.from(new Set(user_records.map((x) => x.record_id)));
+            debugLog("record_ids count", record_ids.length);
+
+            debugTime("[HomePage] records");
 
             const { data: recData, error: recError } = await supabase
                 .from("records")
                 .select("id,discogs_release_id,title,artist,year,country,thumb_url,label,catno")
-                .in("id", recordIds);
+                .in("id", record_ids);
+
+            debugTimeEnd("[HomePage] records");
+
+            debugLog("records count", recData?.length, "error", recError);
 
             if (recError) {
                 throw recError;
             }
 
-            const recordById = new Map<string, RecordRow>();
+            const record_by_id = new Map<string, RecordRow>();
             for (const r of (recData ?? []) as RecordRow[]) {
-                recordById.set(r.id, r);
+                record_by_id.set(r.id, r);
             }
 
             const collection: RecordRow[] = [];
             const wishlist: RecordRow[] = [];
 
-            for (const ur of userRecords) {
-                const r = recordById.get(ur.record_id);
+            for (const ur of user_records) {
+                const r = record_by_id.get(ur.record_id);
                 if (!r) {
                     continue;
                 }
@@ -180,38 +186,70 @@ export default function HomePage() {
                 }
             }
 
-            if (isStale() || authUserIdRef.current !== userId) {
+            debugLog("collection size", collection.length);
+            debugLog("wishlist size", wishlist.length);
+
+            if (libraryLoadSeqRef.current !== request_id) {
+                debugWarn("stale request, skip state update");
                 return;
             }
 
             setCollectionItems(collection.slice(0, 8));
             setWishlistItems(wishlist.slice(0, 8));
         } catch (e) {
-            if (isStale()) {
-                return;
+            debugError("[HomePage] loadLibraryPreview error", e);
+            if (libraryLoadSeqRef.current === request_id) {
+                setLibraryError(String(e));
             }
-            setLibraryError(String(e));
         } finally {
-            if (!isStale()) {
+            libraryActiveRef.current = Math.max(0, libraryActiveRef.current - 1);
+            debugLog("active_requests after finally", libraryActiveRef.current);
+
+            if (libraryActiveRef.current === 0) {
+                debugLog("libraryLoading -> false");
                 setLibraryLoading(false);
             }
+
+            debugGroupEnd();
         }
     }
 
     useEffect(() => {
-        if (!isAuthenticated) {
-            libraryLoadSeqRef.current += 1;
-            setCollectionItems([]);
-            setWishlistItems([]);
+        debugGroup("[HomePage] auth effect");
+        debugLog("auth_loading", auth.is_loading);
+        debugLog("auth_user_id", user_id);
+        debugGroupEnd();
+
+        libraryLoadSeqRef.current += 1;
+
+        if (auth.is_loading) {
+            debugLog("[HomePage] auth loading, skip library load");
+            setLibraryLoading(false);
             return;
         }
-        loadLibraryPreview();
-    }, [isAuthenticated]);
+
+        if (!user_id) {
+            debugLog("[HomePage] no user_id, clear library");
+            setCollectionItems([]);
+            setWishlistItems([]);
+            setLibraryLoading(false);
+            setLibraryError("");
+            return;
+        }
+
+        void loadLibraryPreview(user_id);
+    }, [auth.is_loading, user_id]);
 
     async function fetchSearchPage(nextPage: number, append: boolean) {
-        const requestId = searchLoadSeqRef.current + 1;
-        searchLoadSeqRef.current = requestId;
-        const isStale = () => searchLoadSeqRef.current !== requestId;
+        const request_id = searchLoadSeqRef.current + 1;
+        searchLoadSeqRef.current = request_id;
+        const is_stale = () => searchLoadSeqRef.current !== request_id;
+
+        debugGroup("[HomePage] search");
+        debugLog("request_id", request_id);
+        debugLog("query", query);
+        debugLog("page", nextPage);
+
         setSearchError("");
         setSearchLoading(true);
 
@@ -220,19 +258,24 @@ export default function HomePage() {
             const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&type=release&page=${nextPage}&per_page=50`;
 
             const resp = await fetchWithRateLimit(url);
+            debugLog("search status", resp.status);
+
             if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status}`);
             }
 
             const json = (await resp.json()) as DiscogsSearchResponse;
+            debugLog("search results raw", json.results?.length);
 
             const vinylReleases = (json.results ?? []).filter(
                 (r) => r.type === "release" && Array.isArray(r.format) && r.format.includes("Vinyl")
             );
 
+            debugLog("vinyl results", vinylReleases.length);
+
             const pagination = json.pagination;
             if (pagination) {
-                if (isStale()) {
+                if (is_stale()) {
                     return;
                 }
                 setPage(pagination.page);
@@ -240,19 +283,20 @@ export default function HomePage() {
                 setItemsTotal(pagination.items);
             }
 
-            if (isStale()) {
+            if (is_stale()) {
                 return;
             }
             setResults((prev) => (append ? [...prev, ...vinylReleases] : vinylReleases));
         } catch (e) {
-            if (isStale()) {
-                return;
+            debugError("[HomePage] search error", e);
+            if (!is_stale()) {
+                setSearchError(String(e));
             }
-            setSearchError(String(e));
         } finally {
-            if (!isStale()) {
+            if (!is_stale()) {
                 setSearchLoading(false);
             }
+            debugGroupEnd();
         }
     }
 
@@ -267,14 +311,14 @@ export default function HomePage() {
     const canOpenSearch = !searchLoading && query.length > 0 && results.length > 0;
 
     const heroSubtitle = useMemo(() => {
-        if (isAuthenticated) {
+        if (auth.is_loading || is_authenticated) {
             return "Cherche des vinyles, ajoute les à ta collection ou à ta wishlist, et partage ton profil.";
         }
         return "Cherche des vinyles, prépare ta wishlist, garde ta collection à jour, et partage la avec tes amis.";
-    }, [isAuthenticated]);
+    }, [auth.is_loading, is_authenticated]);
 
     const showProfilePrompt =
-        isAuthenticated && !profile.loading && !!profile.username && profile.username.startsWith("ano_");
+        is_authenticated && !profile.loading && !!profile.username && profile.username.startsWith("ano_");
 
     return (
         <div className="page">
@@ -291,13 +335,14 @@ export default function HomePage() {
                     </div>
                 </div>
             ) : null}
+
             <section className="hero">
                 <div className="heroLeft">
                     <div className="badge">Grooves</div>
                     <h1 className="heroTitle">Ta collection de vinyles, simple à gérer, simple à partager.</h1>
                     <p className="heroSubtitle">{heroSubtitle}</p>
 
-                    {!isAuthenticated ? (
+                    {auth.is_loading ? null : !is_authenticated ? (
                         <div className="heroCtas">
                             <Link className="btn btnPrimary" to="/login">
                                 Se connecter
@@ -328,12 +373,12 @@ export default function HomePage() {
                                 onChange={(e) => setQuery(e.target.value)}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter" && query.trim() && !searchLoading) {
-                                        search();
+                                        void search();
                                     }
                                 }}
                                 placeholder="Daft Punk, Discovery, 10th anniversary"
                             />
-                            <button className="btn btnPrimary" onClick={search} disabled={!query || searchLoading}>
+                            <button className="btn btnPrimary" onClick={() => void search()} disabled={!query || searchLoading}>
                                 Rechercher
                             </button>
                         </div>
@@ -386,7 +431,7 @@ export default function HomePage() {
                 </div>
             </section>
 
-            {isAuthenticated ? (
+            {is_authenticated ? (
                 <section className="section">
                     <div className="sectionHeader">
                         <h2 className="sectionTitle">Ta bibliothèque</h2>
@@ -418,7 +463,9 @@ export default function HomePage() {
                                             >
                                                 <div className="card">
                                                     <div className="thumb">
-                                                        {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
+                                                        {r.thumb_url ? (
+                                                            <img className="thumbImg" src={r.thumb_url} alt={r.title} />
+                                                        ) : null}
                                                     </div>
                                                     <div className="cardBody">
                                                         <div className="cardTitle">{r.title}</div>
@@ -449,7 +496,9 @@ export default function HomePage() {
                                             >
                                                 <div className="card">
                                                     <div className="thumb">
-                                                        {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
+                                                        {r.thumb_url ? (
+                                                            <img className="thumbImg" src={r.thumb_url} alt={r.title} />
+                                                        ) : null}
                                                     </div>
                                                     <div className="cardBody">
                                                         <div className="cardTitle">{r.title}</div>

@@ -60,9 +60,9 @@ export async function fetchWithRateLimit(
   options: RateLimitOptions = {}
 ): Promise<Response> {
   const maxRetries = options.maxRetries ?? 2;
-  const baseDelayMs = options.baseDelayMs ?? 1000;
-  const maxDelayMs = options.maxDelayMs ?? 8000;
-  const jitterMs = options.jitterMs ?? 250;
+  const baseDelayMs = options.baseDelayMs ?? 2000;
+  const maxDelayMs = options.maxDelayMs ?? 16000;
+  const jitterMs = options.jitterMs ?? 500;
   const signal = options.signal ?? init.signal;
 
   let attempt = 0;

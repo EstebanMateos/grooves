@@ -1,62 +1,38 @@
 import {useEffect, useRef, useState} from 'react';
 
 import {supabase} from '../supabaseClient';
+import {isDebugEnabled} from '../utils/supabaseDebug';
+import {useAuthSession} from './useAuthSession';
 
 type LibraryIndex = {
   collection_ids: Set<number>; wishlist_ids: Set<number>;
 };
 
 export function useUserLibraryIndex() {
+  const auth = useAuthSession();
   const [index, setIndex] = useState<LibraryIndex>(
       {collection_ids: new Set<number>(), wishlist_ids: new Set<number>()});
 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const requestIdRef = useRef<number>(0);
-
-  function isAuthSessionMissing(err: unknown): boolean {
-    if (err && typeof err === 'object' && 'name' in err) {
-      if ((err as {name?: string}).name === 'AuthSessionMissingError') {
-        return true;
-      }
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    return message.toLowerCase().includes('auth session missing');
-  }
-
-  async function getSessionOrRefresh() {
-    const {data, error: sessionError} = await supabase.auth.getSession();
-    if (sessionError) {
-      console.warn('[useUserLibraryIndex] getSession failed', sessionError);
-      throw sessionError;
-    }
-    if (data.session) {
-      return data.session;
-    }
-
-    const {data: refreshData, error: refreshError} =
-        await supabase.auth.refreshSession();
-    if (refreshError) {
-      console.warn('[useUserLibraryIndex] refreshSession failed', refreshError);
-      if (isAuthSessionMissing(refreshError)) {
-        return null;
-      }
-      throw refreshError;
-    }
-    return refreshData.session ?? null;
-  }
+  const activeUserIdRef = useRef<string|null>(null);
 
   async function reload() {
+    if (auth.is_loading) {
+      return;
+    }
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    const isStale = () => requestIdRef.current !== requestId;
+    const userId = auth.user_id;
+    const isStale = () =>
+        requestIdRef.current !== requestId ||
+        activeUserIdRef.current !== userId;
     setLoading(true);
     setError('');
 
     try {
-      const session = await getSessionOrRefresh();
-
-      if (!session) {
+      if (!auth.is_authenticated || !userId) {
         if (isStale()) {
           return;
         }
@@ -68,10 +44,12 @@ export function useUserLibraryIndex() {
         return;
       }
 
+      activeUserIdRef.current = userId;
+
       const {data, error} =
           await supabase.from('user_records')
               .select('list_type, records ( discogs_release_id )')
-              .eq('user_id', session.user.id);
+              .eq('user_id', userId);
 
       if (error) {
         throw error;
@@ -102,7 +80,9 @@ export function useUserLibraryIndex() {
       if (isStale()) {
         return;
       }
-      console.error('[useUserLibraryIndex] reload failed', error);
+      if (isDebugEnabled()) {
+        console.error('[useUserLibraryIndex] reload failed', error);
+      }
       setError(String(error));
     } finally {
       if (!isStale()) {
@@ -112,12 +92,22 @@ export function useUserLibraryIndex() {
   }
 
   useEffect(() => {
-    reload();
-    const {data: sub} = supabase.auth.onAuthStateChange(() => reload());
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-  }, []);
+    if (auth.is_loading) {
+      return;
+    }
+    if (!auth.is_authenticated || !auth.user_id) {
+      activeUserIdRef.current = null;
+      setIndex({
+        collection_ids: new Set<number>(),
+        wishlist_ids: new Set<number>()
+      });
+      setError('');
+      setLoading(false);
+      return;
+    }
+    activeUserIdRef.current = auth.user_id;
+    void reload();
+  }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
   return {...index, loading, error, reload};
 }

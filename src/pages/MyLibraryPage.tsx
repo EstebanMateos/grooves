@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
+import { isDebugEnabled } from "../utils/supabaseDebug";
 import BackButton from "../components/BackButton";
 
 type RecordRow = {
@@ -40,6 +42,7 @@ const LIBRARY_CACHE_PREFIX = "grooves:library_cache:";
 
 export default function MyLibraryPage() {
     const library = useUserLibraryIndex();
+    const auth = useAuthSession();
 
     const [items, setItems] = useState<UserRecordRow[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
@@ -48,42 +51,8 @@ export default function MyLibraryPage() {
     const [status, setStatus] = useState<string>("");
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
-    const [authUserId, setAuthUserId] = useState<string | null>(null);
-    const [authReady, setAuthReady] = useState<boolean>(false);
     const activeUserIdRef = useRef<string | null>(null);
-    const authSeqRef = useRef<number>(0);
     const loadSeqRef = useRef<number>(0);
-
-    function isAuthSessionMissing(err: unknown): boolean {
-        if (err && typeof err === "object" && "name" in err) {
-            if ((err as { name?: string }).name === "AuthSessionMissingError") {
-                return true;
-            }
-        }
-        const message = err instanceof Error ? err.message : String(err);
-        return message.toLowerCase().includes("auth session missing");
-    }
-
-    async function getSessionOrRefresh() {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-            console.warn("[MyLibraryPage] getSession failed", sessionError);
-            throw sessionError;
-        }
-        if (data.session) {
-            return data.session;
-        }
-
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-            console.warn("[MyLibraryPage] refreshSession failed", refreshError);
-            if (isAuthSessionMissing(refreshError)) {
-                return null;
-            }
-            throw refreshError;
-        }
-        return refreshData.session ?? null;
-    }
 
     function readCache(userId: string): CachedLibrary | null {
         try {
@@ -129,6 +98,7 @@ export default function MyLibraryPage() {
 
         const seq = loadSeqRef.current + 1;
         loadSeqRef.current = seq;
+        activeUserIdRef.current = userId;
         const isStale = () =>
             loadSeqRef.current !== seq || activeUserIdRef.current !== userId;
 
@@ -194,7 +164,9 @@ export default function MyLibraryPage() {
                 return;
             }
 
-            console.error("[MyLibraryPage] load failed", e);
+            if (isDebugEnabled()) {
+                console.error("[MyLibraryPage] load failed", e);
+            }
             const cached = readCache(userId);
             if (cached?.items?.length) {
                 setItems(cached.items);
@@ -212,67 +184,17 @@ export default function MyLibraryPage() {
     }
 
     useEffect(() => {
-        let isMounted = true;
-        const bumpAuthSeq = () => {
-            authSeqRef.current += 1;
-            return authSeqRef.current;
-        };
-
-        async function initAuth() {
-            const seq = bumpAuthSeq();
-            try {
-                const session = await getSessionOrRefresh();
-                if (!isMounted || authSeqRef.current !== seq) {
-                    return;
-                }
-                const userId = session?.user.id ?? null;
-                activeUserIdRef.current = userId;
-                setAuthUserId(userId);
-                setAuthReady(true);
-                if (!userId) {
-                    resetLibraryState();
-                }
-            } catch (error) {
-                if (!isMounted || authSeqRef.current !== seq) {
-                    return;
-                }
-                console.error("[MyLibraryPage] getSession failed", error);
-                activeUserIdRef.current = null;
-                setAuthUserId(null);
-                setAuthReady(true);
-                resetLibraryState();
-            }
-        }
-
-        initAuth();
-
-        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-            const seq = bumpAuthSeq();
-            if (!isMounted || authSeqRef.current !== seq) {
-                return;
-            }
-            const prevUserId = activeUserIdRef.current;
-            const userId = session?.user.id ?? null;
-            activeUserIdRef.current = userId;
-            setAuthUserId(userId);
-            setAuthReady(true);
-            if (!userId || (prevUserId && prevUserId !== userId)) {
-                resetLibraryState();
-            }
-        });
-
-        return () => {
-            isMounted = false;
-            sub.subscription.unsubscribe();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (!authReady || !authUserId) {
+        if (auth.is_loading) {
             return;
         }
-        load(authUserId);
-    }, [authReady, authUserId]);
+        if (!auth.is_authenticated || !auth.user_id) {
+            activeUserIdRef.current = null;
+            resetLibraryState();
+            return;
+        }
+        activeUserIdRef.current = auth.user_id;
+        void load(auth.user_id);
+    }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     async function removeItem(userRecord: UserRecordRow) {
         setError("");
@@ -280,12 +202,14 @@ export default function MyLibraryPage() {
         setBusyId(userRecord.id);
 
         try {
-            const session = await getSessionOrRefresh();
-
-            if (!session) {
+            if (auth.is_loading) {
+                return;
+            }
+            if (!auth.is_authenticated || !auth.user_id) {
                 setError("Merci de te connecter.");
                 return;
             }
+            const userId = auth.user_id;
 
             if (userRecord.list_type === "collection") {
                 const { error: collError } = await supabase
@@ -302,7 +226,7 @@ export default function MyLibraryPage() {
                 .from("user_records")
                 .delete()
                 .eq("id", userRecord.id)
-                .eq("user_id", session.user.id);
+                .eq("user_id", userId);
 
             if (delError) {
                 throw delError;
@@ -310,14 +234,16 @@ export default function MyLibraryPage() {
 
             setItems((prev) => {
                 const next = prev.filter((x) => x.id !== userRecord.id);
-                writeCache(session.user.id, next);
+                writeCache(userId, next);
                 return next;
             });
             await library.reload();
 
             setStatus(userRecord.list_type === "collection" ? "Retiré de la collection." : "Retiré de la wishlist.");
         } catch (e) {
-            console.error("[MyLibraryPage] removeItem failed", e);
+            if (isDebugEnabled()) {
+                console.error("[MyLibraryPage] removeItem failed", e);
+            }
             setError(String(e));
         } finally {
             setBusyId(null);
@@ -344,7 +270,7 @@ export default function MyLibraryPage() {
         });
     }, [items, searchText, filter]);
 
-    const needsLogin = authReady && !authUserId;
+    const needsLogin = !auth.is_loading && !auth.is_authenticated;
 
     return (
         <div>
