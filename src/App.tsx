@@ -8,6 +8,7 @@ import DiscoverProfilesPage from "./pages/DiscoverProfilesPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import MyLibraryPage from "./pages/MyLibraryPage";
+import { clearLibraryCache } from "./utils/libraryCache";
 import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import ReleasePage from "./pages/ReleasePage";
@@ -25,6 +26,7 @@ export default function App() {
     const installDismissedKey = "grooves:pwa_install_dismissed";
 
     async function signOut() {
+        clearLibraryCache(auth.user_id);
         await supabase.auth.signOut();
     }
 

@@ -35,7 +35,6 @@ export function useUserProfileSummary(): UserProfileSummary {
 
         if (!auth.is_authenticated || !userId) {
             activeUserIdRef.current = null;
-            setState({ loading: false, username: null, display_name: null });
             return () => {
                 isMounted = false;
             };
@@ -89,5 +88,8 @@ export function useUserProfileSummary(): UserProfileSummary {
         };
     }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
+    if (!auth.is_loading && (!auth.is_authenticated || !auth.user_id)) {
+        return { loading: false, username: null, display_name: null };
+    }
     return state;
 }

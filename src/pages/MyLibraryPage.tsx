@@ -6,6 +6,7 @@ import { supabase } from "../supabaseClient";
 import { isDebugEnabled } from "../utils/supabaseDebug";
 import { getCollectionGroupId } from "../utils/collectionGroup";
 import BackButton from "../components/BackButton";
+import { LIBRARY_CACHE_PREFIX } from "../utils/libraryCache";
 
 type RecordRow = {
     id: string;
@@ -46,8 +47,6 @@ type CachedLibrary = {
     updated_at: string;
     items: LibraryItemRow[];
 };
-
-const LIBRARY_CACHE_PREFIX = "grooves:library_cache_v2:";
 
 export default function MyLibraryPage() {
     const library = useUserLibraryIndex();
@@ -239,6 +238,8 @@ export default function MyLibraryPage() {
         }
         activeUserIdRef.current = auth.user_id;
         void load(auth.user_id);
+    // load is intentionally called from the current auth snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     async function removeItem(userRecord: LibraryItemRow) {

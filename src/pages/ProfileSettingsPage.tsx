@@ -308,6 +308,8 @@ export default function ProfileSettingsPage() {
 
     useEffect(() => {
         void loadGroupState();
+    // loadGroupState is intentionally called from the current auth snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     async function save() {

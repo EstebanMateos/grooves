@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
 import {supabase} from '../supabaseClient';
 import {isDebugEnabled} from '../utils/supabaseDebug';
@@ -8,6 +8,7 @@ import {getCollectionGroupId} from '../utils/collectionGroup';
 type LibraryIndex = {
   collection_ids: Set<number>; wishlist_ids: Set<number>;
 };
+type JoinedRecordRow = {records: {discogs_release_id: number|null}|null};
 
 export function useUserLibraryIndex() {
   const auth = useAuthSession();
@@ -19,7 +20,7 @@ export function useUserLibraryIndex() {
   const requestIdRef = useRef<number>(0);
   const activeUserIdRef = useRef<string|null>(null);
 
-  async function reload() {
+  const reload = useCallback(async () => {
     if (auth.is_loading) {
       return;
     }
@@ -71,14 +72,14 @@ export function useUserLibraryIndex() {
         throw wishlistResp.error;
       }
 
-      (collectionResp.data ?? []).forEach((row: any) => {
+      ((collectionResp.data ?? []) as unknown as JoinedRecordRow[]).forEach((row) => {
         const rid = row.records?.discogs_release_id;
         if (rid) {
           collection_ids.add(rid);
         }
       });
 
-      (wishlistResp.data ?? []).forEach((row: any) => {
+      ((wishlistResp.data ?? []) as unknown as JoinedRecordRow[]).forEach((row) => {
         const rid = row.records?.discogs_release_id;
         if (rid) {
           wishlist_ids.add(rid);
@@ -104,7 +105,7 @@ export function useUserLibraryIndex() {
         setLoading(false);
       }
     }
-  }
+  }, [auth.is_authenticated, auth.is_loading, auth.user_id]);
 
   useEffect(() => {
     if (auth.is_loading) {
@@ -122,7 +123,7 @@ export function useUserLibraryIndex() {
     }
     activeUserIdRef.current = auth.user_id;
     void reload();
-  }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
+  }, [auth.is_loading, auth.is_authenticated, auth.user_id, reload]);
 
   return {...index, loading, error, reload};
 }

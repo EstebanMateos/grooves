@@ -23,6 +23,8 @@ let state: AuthSessionState = {
 const listeners = new Set<Listener>();
 
 let started = false;
+let subscription: {unsubscribe: () => void} | null = null;
+let authSequence = 0;
 
 function emit(): void {
   for (const listener of listeners) {
@@ -47,14 +49,21 @@ function applySession(session: Session|null, event: string|null): void {
 }
 
 async function bootstrap(): Promise<void> {
+  const sequence = ++authSequence;
   try {
     const {data, error} = await supabase.auth.getSession();
+    if (sequence !== authSequence) {
+      return;
+    }
     if (error) {
       applySession(null, 'GET_SESSION_ERROR');
       return;
     }
     applySession(data.session ?? null, 'GET_SESSION');
   } catch {
+    if (sequence !== authSequence) {
+      return;
+    }
     applySession(null, 'GET_SESSION_THROW');
   }
 }
@@ -67,9 +76,11 @@ function startStore(): void {
 
   void bootstrap();
 
-  supabase.auth.onAuthStateChange((event, session) => {
+  const {data} = supabase.auth.onAuthStateChange((event, session) => {
+    authSequence += 1;
     applySession(session ?? null, event);
   });
+  subscription = data.subscription;
 }
 
 function getSnapshot(): AuthSessionState {
@@ -87,4 +98,24 @@ startStore();
 
 export function useAuthSession(): AuthSessionState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+export function getAuthSessionSnapshotForTestsOnly(): AuthSessionState {
+  return getSnapshot();
+}
+
+export function stopAuthSessionStoreForTestsOnly(): void {
+  subscription?.unsubscribe();
+  subscription = null;
+  started = false;
+  authSequence = 0;
+  state = {
+    is_loading: true,
+    is_authenticated: false,
+    user_id: null,
+    user_email: null,
+    session: null,
+    last_event: null,
+  };
+  emit();
 }

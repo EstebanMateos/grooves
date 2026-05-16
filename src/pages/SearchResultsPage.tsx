@@ -44,10 +44,14 @@ export default function SearchResultsPage() {
     const [error, setError] = useState<string>("");
     const [pageInput, setPageInput] = useState<string>(String(pageParam));
     const fetchSeqRef = useRef<number>(0);
+    const fetchControllerRef = useRef<AbortController | null>(null);
 
     async function fetchPage(q: string, nextPage: number) {
         const requestId = fetchSeqRef.current + 1;
         fetchSeqRef.current = requestId;
+        fetchControllerRef.current?.abort();
+        const controller = new AbortController();
+        fetchControllerRef.current = controller;
         const isStale = () => fetchSeqRef.current !== requestId;
         setError("");
         setLoading(true);
@@ -56,7 +60,7 @@ export default function SearchResultsPage() {
             const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
             const url = `${baseUrl}/search?q=${encodeURIComponent(q)}&type=release&page=${nextPage}&per_page=50`;
 
-            const resp = await fetchWithRateLimit(url);
+            const resp = await fetchWithRateLimit(url, { signal: controller.signal });
             if (!resp.ok) {
                 throw new Error(`HTTP ${resp.status}`);
             }
@@ -76,7 +80,7 @@ export default function SearchResultsPage() {
                 setItemsTotal(pagination.items);
             }
 
-            if (isStale()) {
+            if (controller.signal.aborted || isStale()) {
                 return;
             }
             setResults(vinylReleases);
@@ -99,6 +103,7 @@ export default function SearchResultsPage() {
 
         if (!queryParam) {
             fetchSeqRef.current += 1;
+            fetchControllerRef.current?.abort();
             setResults([]);
             setItemsTotal(0);
             setPagesTotal(1);
@@ -108,6 +113,9 @@ export default function SearchResultsPage() {
         }
 
         fetchPage(queryParam, pageParam);
+        return () => {
+            fetchControllerRef.current?.abort();
+        };
     }, [queryParam, pageParam]);
 
     function updateSearchParams(nextQuery: string, nextPage: number) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "grooves-static-v3";
+const CACHE_NAME = "grooves-static-v4";
 const BASE_URL = self.registration.scope;
 const CORE_ASSETS = [
   BASE_URL,
@@ -50,6 +50,9 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request, { cache: "no-store" })
         .then((response) => {
+          if (!response.ok) {
+            return response;
+          }
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
           return response;
@@ -65,6 +68,9 @@ self.addEventListener("fetch", (event) => {
         return cached;
       }
       return fetch(request).then((response) => {
+        if (!response.ok || response.type !== "basic") {
+          return response;
+        }
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
         return response;

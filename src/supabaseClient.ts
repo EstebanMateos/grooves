@@ -44,21 +44,23 @@ supabase.auth.signOut = async (...args) => {
   return await original_sign_out(...args);
 };
 
-const original_remove_item =
-    window.localStorage.removeItem.bind(window.localStorage);
-window.localStorage.removeItem = (key: string) => {
-  if (key.includes('sb-') || key.includes('supabase')) {
-    if (debugEnabled) {
-      console.trace(`[localStorage] removeItem ${key}`);
-    }
-  }
-  return original_remove_item(key);
-};
+if (debugEnabled) {
+  try {
+    const original_remove_item =
+        window.localStorage.removeItem.bind(window.localStorage);
+    window.localStorage.removeItem = (key: string) => {
+      if (key.includes('sb-') || key.includes('supabase')) {
+        console.trace(`[localStorage] removeItem ${key}`);
+      }
+      return original_remove_item(key);
+    };
 
-const original_clear = window.localStorage.clear.bind(window.localStorage);
-window.localStorage.clear = () => {
-  if (debugEnabled) {
-    console.trace('[localStorage] clear');
+    const original_clear = window.localStorage.clear.bind(window.localStorage);
+    window.localStorage.clear = () => {
+      console.trace('[localStorage] clear');
+      return original_clear();
+    };
+  } catch (e) {
+    console.warn('[storage] cannot instrument localStorage', e);
   }
-  return original_clear();
-};
+}

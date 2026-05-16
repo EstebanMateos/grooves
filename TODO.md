@@ -4,10 +4,8 @@
 - [x] Fix auth state race between `getSession()` and `onAuthStateChange()` so stale results cannot overwrite newer auth events. Files: `src/hooks/useAuthSession.ts`, `src/pages/HomePage.tsx`, `src/pages/MyLibraryPage.tsx`.
   - [x] Add a monotonically increasing auth sequence ref and ignore stale `getSession()` results.
   - [x] Guard auth `setState` calls with `isMounted` + sequence in both the initial load and auth change handler.
-- [x] Stop forcing sign-out when `localStorage` is blocked or unavailable; fall back to Supabase session state instead. File: `src/hooks/useAuthSession.ts`.
-  - [x] Wrap all storage reads in try/catch; if a read fails, disable polling and skip `applySignedOut`.
-  - [x] Only call `applySignedOut()` when storage is accessible and the key was removed, or when Supabase emits SIGNED_OUT.
-  - [x] Add a "loggedOnce" flag to avoid spamming warnings.
+- [x] Keep storage instrumentation safe when `localStorage` is blocked or unavailable. File: `src/supabaseClient.ts`.
+  - [x] Wrap debug instrumentation in try/catch so storage-restricted browsers still boot.
 - [x] Prevent stale route data when navigating quickly (cancel or sequence in-flight fetches). Files: `src/pages/ReleasePage.tsx`, `src/pages/PublicProfilePage.tsx`.
   - [x] Add an `AbortController` per effect and pass `signal` to `fetch`.
   - [x] Track a request id in a `useRef` and ignore late responses.
@@ -26,12 +24,10 @@
   - [x] Wrap `localStorage.getItem` in try/catch and default to "not dismissed" on error.
   - [x] Wrap `setItem` calls in try/catch in `handleInstalled`, `handleInstall`, and `handleDismissInstall`.
   - [x] Add a small in-memory fallback flag for the current session.
-- [x] Do not retry aborted requests in `fetchWithRetry` (short-circuit on AbortError). File: `src/supabaseClient.ts`.
-  - [x] In the `catch` path, check `error.name === "AbortError"` or `init?.signal?.aborted` and rethrow immediately.
-  - [x] Keep retries only for network errors and 5xx on GET/HEAD.
+- [x] Abort obsolete Discogs searches so route/query changes do not keep consuming quota. Files: `src/pages/HomePage.tsx`, `src/pages/SearchResultsPage.tsx`.
 
 ## Tests (Prevention)
-- [ ] Auth race regression test: delayed `getSession()` + SIGNED_OUT event should stay signed out.
+- [x] Auth race regression test: delayed `getSession()` + SIGNED_OUT event should stay signed out.
   - [ ] Mock `supabase.auth.getSession()` to resolve after a delay.
   - [ ] Trigger `onAuthStateChange` with SIGNED_OUT before the delay completes.
   - [ ] Assert `is_authenticated` remains false after the delayed promise resolves.
@@ -51,6 +47,6 @@
   - [ ] Seed localStorage with cached items.
   - [ ] Mock `user_records` to return an empty list.
   - [ ] Assert cache is cleared and UI stays empty when offline.
-- [ ] fetchWithRetry abort test: abort should not retry.
+- [x] Discogs abort test: abort should not retry.
   - [ ] Call `fetchWithRetry` with an already-aborted signal.
-  - [ ] Assert the underlying fetch is called once and no retry occurs.
+  - [x] Assert the underlying fetch is called once and no retry occurs.

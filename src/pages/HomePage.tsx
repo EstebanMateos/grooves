@@ -111,6 +111,7 @@ export default function HomePage() {
     const libraryLoadSeqRef = useRef<number>(0);
     const libraryActiveRef = useRef<number>(0);
     const searchLoadSeqRef = useRef<number>(0);
+    const searchControllerRef = useRef<AbortController | null>(null);
 
     async function loadLibraryPreview(k_user_id: string) {
         const request_id = libraryLoadSeqRef.current + 1;
@@ -266,11 +267,22 @@ export default function HomePage() {
         }
 
         void loadLibraryPreview(user_id);
+    // The load helper intentionally captures the current debug functions and user id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [auth.is_loading, user_id]);
+
+    useEffect(() => {
+        return () => {
+            searchControllerRef.current?.abort();
+        };
+    }, []);
 
     async function fetchSearchPage(nextPage: number, append: boolean) {
         const request_id = searchLoadSeqRef.current + 1;
         searchLoadSeqRef.current = request_id;
+        searchControllerRef.current?.abort();
+        const controller = new AbortController();
+        searchControllerRef.current = controller;
         const is_stale = () => searchLoadSeqRef.current !== request_id;
 
         debugGroup("[HomePage] search");
@@ -285,7 +297,7 @@ export default function HomePage() {
             const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
             const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&type=release&page=${nextPage}&per_page=50`;
 
-            const resp = await fetchWithRateLimit(url);
+            const resp = await fetchWithRateLimit(url, { signal: controller.signal });
             debugLog("search status", resp.status);
 
             if (!resp.ok) {
@@ -317,7 +329,7 @@ export default function HomePage() {
             setResults((prev) => (append ? [...prev, ...vinylReleases] : vinylReleases));
         } catch (e) {
             debugError("[HomePage] search error", e);
-            if (!is_stale()) {
+            if (!controller.signal.aborted && !is_stale()) {
                 setSearchError(String(e));
             }
         } finally {
@@ -329,6 +341,7 @@ export default function HomePage() {
     }
 
     async function search() {
+        searchControllerRef.current?.abort();
         setResults([]);
         setPage(1);
         setPagesTotal(1);

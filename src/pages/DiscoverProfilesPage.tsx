@@ -123,7 +123,7 @@ export default function DiscoverProfilesPage() {
             }
 
             setDefaultRows((data ?? []) as PublicProfileRow[]);
-        } catch (e) {
+        } catch {
             try {
                 const { data, error: fallbackError } = await supabase
                     .from("profiles")
@@ -285,6 +285,8 @@ export default function DiscoverProfilesPage() {
         }, 250);
 
         return () => window.clearTimeout(handle);
+    // search/loadDefault intentionally close over the current query and are scheduled on query changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     useEffect(() => {
@@ -298,6 +300,8 @@ export default function DiscoverProfilesPage() {
             return;
         }
         void loadFavorites(auth.user_id);
+    // loadFavorites is invoked from the current auth snapshot only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [auth.is_loading, auth.is_authenticated, auth.user_id]);
 
     const results = useMemo(() => {
