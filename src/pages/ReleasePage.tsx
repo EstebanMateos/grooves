@@ -5,8 +5,9 @@ import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import { isDebugEnabled } from "../utils/supabaseDebug";
-import { ensureCollectionGroupId, getCollectionGroupId } from "../utils/collectionGroup";
+import { getCollectionGroupId } from "../utils/collectionGroup";
 import {
+    addRecordToCollection,
     getRecordIdByDiscogsReleaseId,
     removeCollectionRecord,
     removeWishlistRecord
@@ -199,21 +200,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             }
 
             if (listType === "collection") {
-                const groupId = await ensureCollectionGroupId();
-                const { error: collectionItemError } = await supabase
-                    .from("collection_group_items")
-                    .upsert(
-                        {
-                            group_id: groupId,
-                            record_id: recordId,
-                            added_by_user_id: userId
-                        },
-                        { onConflict: "group_id,record_id" }
-                    );
-
-                if (collectionItemError) {
-                    throw collectionItemError;
-                }
+                await addRecordToCollection(recordId, userId);
             } else {
                 const { error: userRecordError } = await supabase
                     .from("user_records")

@@ -1,5 +1,5 @@
 import { supabase } from "../supabaseClient";
-import { getCollectionGroupId } from "./collectionGroup";
+import { ensureCollectionGroupId, getCollectionGroupId } from "./collectionGroup";
 
 export type LibraryRecord = {
     id: string;
@@ -259,6 +259,19 @@ export async function addCollectionRecord(recordId: string, userId: string, grou
     }
 
     return data as { id: string; record_id: string; created_at: string };
+}
+
+export async function addRecordToCollection(recordId: string, userId: string, groupId?: string | null): Promise<{
+    groupId: string;
+    item: {
+        id: string;
+        record_id: string;
+        created_at: string;
+    };
+}> {
+    const nextGroupId = groupId ?? await ensureCollectionGroupId();
+    const item = await addCollectionRecord(recordId, userId, nextGroupId);
+    return { groupId: nextGroupId, item };
 }
 
 export async function getRecordIdByDiscogsReleaseId(discogsReleaseId: number): Promise<string | null> {

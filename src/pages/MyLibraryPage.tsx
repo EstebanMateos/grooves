@@ -4,10 +4,9 @@ import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { isDebugEnabled } from "../utils/supabaseDebug";
 import BackButton from "../components/BackButton";
-import { ensureCollectionGroupId } from "../utils/collectionGroup";
 import { LIBRARY_CACHE_PREFIX } from "../utils/libraryCache";
 import {
-    addCollectionRecord,
+    addRecordToCollection,
     loadLibraryItems,
     removeCollectionItemById,
     removeWishlistItemById,
@@ -225,21 +224,23 @@ export default function MyLibraryPage() {
             }
 
             const userId = auth.user_id;
-            const groupId = collectionGroupId ?? await ensureCollectionGroupId();
             const existingCollectionItem = items.find(
                 (item) => item.list_type === "collection" && item.record_id === userRecord.record_id
             );
 
-            const collectionItem = existingCollectionItem
+            const collectionResult = existingCollectionItem
                 ? {
-                    id: existingCollectionItem.id,
-                    record_id: existingCollectionItem.record_id,
-                    created_at: existingCollectionItem.created_at
+                    groupId: collectionGroupId,
+                    item: {
+                        id: existingCollectionItem.id,
+                        record_id: existingCollectionItem.record_id,
+                        created_at: existingCollectionItem.created_at
+                    }
                 }
-                : await addCollectionRecord(userRecord.record_id, userId, groupId);
+                : await addRecordToCollection(userRecord.record_id, userId, collectionGroupId);
 
             await removeWishlistItemById(userRecord.id, userId);
-            setCollectionGroupId(groupId);
+            setCollectionGroupId(collectionResult.groupId);
 
             setItems((prev) => {
                 const withoutWishlist = prev.filter(
@@ -252,11 +253,11 @@ export default function MyLibraryPage() {
                     ? withoutWishlist
                     : [
                         {
-                            id: collectionItem.id,
+                            id: collectionResult.item.id,
                             list_type: "collection" as const,
-                            record_id: collectionItem.record_id,
+                            record_id: collectionResult.item.record_id,
                             record: userRecord.record,
-                            created_at: collectionItem.created_at
+                            created_at: collectionResult.item.created_at
                         },
                         ...withoutWishlist
                     ];
