@@ -28,12 +28,49 @@ type DiscogsSearchResponse = {
     results?: DiscogsReleaseSearchItem[];
 };
 
+const SEARCH_RESPONSE_CACHE_MS = 2_000;
+const searchResponseCache = new Map<string, { expiresAt: number; promise: Promise<DiscogsSearchResponse> }>();
+
 function parsePage(value: string | null): number {
     const n = Number(value ?? "1");
     if (!Number.isFinite(n) || n < 1) {
         return 1;
     }
     return Math.floor(n);
+}
+
+function loadDiscogsSearch(url: string): Promise<DiscogsSearchResponse> {
+    const now = Date.now();
+    for (const [cacheKey, entry] of searchResponseCache) {
+        if (entry.expiresAt <= now) {
+            searchResponseCache.delete(cacheKey);
+        }
+    }
+
+    const cached = searchResponseCache.get(url);
+    if (cached && cached.expiresAt > now) {
+        return cached.promise;
+    }
+
+    const promise = fetchWithRateLimit(url).then(async (resp) => {
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
+        return (await resp.json()) as DiscogsSearchResponse;
+    });
+
+    searchResponseCache.set(url, {
+        expiresAt: now + SEARCH_RESPONSE_CACHE_MS,
+        promise
+    });
+
+    promise.catch(() => {
+        if (searchResponseCache.get(url)?.promise === promise) {
+            searchResponseCache.delete(url);
+        }
+    });
+
+    return promise;
 }
 
 export default function SearchResultsPage() {
@@ -50,15 +87,11 @@ export default function SearchResultsPage() {
     const [error, setError] = useState<string>("");
     const [pageInput, setPageInput] = useState<string>(String(pageParam));
     const fetchSeqRef = useRef<number>(0);
-    const fetchControllerRef = useRef<AbortController | null>(null);
 
     async function fetchPage(q: string, nextPage: number) {
         const normalizedQuery = normalizeDiscogsSearchQuery(q);
         const requestId = fetchSeqRef.current + 1;
         fetchSeqRef.current = requestId;
-        fetchControllerRef.current?.abort();
-        const controller = new AbortController();
-        fetchControllerRef.current = controller;
         const isStale = () => fetchSeqRef.current !== requestId;
         setError("");
         setLoading(true);
@@ -67,12 +100,7 @@ export default function SearchResultsPage() {
             const baseUrl = getDiscogsProxyBaseUrl();
             const url = `${baseUrl}/search?q=${encodeURIComponent(normalizedQuery)}&type=release&page=${nextPage}&per_page=50`;
 
-            const resp = await fetchWithRateLimit(url, { signal: controller.signal });
-            if (!resp.ok) {
-                throw new Error(`HTTP ${resp.status}`);
-            }
-
-            const json = (await resp.json()) as DiscogsSearchResponse;
+            const json = await loadDiscogsSearch(url);
             const vinylReleases = (json.results ?? []).filter(
                 (r) => r.type === "release" && Array.isArray(r.format) && r.format.includes("Vinyl")
             );
@@ -87,7 +115,7 @@ export default function SearchResultsPage() {
                 setItemsTotal(pagination.items);
             }
 
-            if (controller.signal.aborted || isStale()) {
+            if (isStale()) {
                 return;
             }
             setResults(vinylReleases);
@@ -110,7 +138,6 @@ export default function SearchResultsPage() {
 
         if (!queryParam || !isDiscogsSearchQueryValid(queryParam)) {
             fetchSeqRef.current += 1;
-            fetchControllerRef.current?.abort();
             setResults([]);
             setItemsTotal(0);
             setPagesTotal(1);
@@ -120,9 +147,6 @@ export default function SearchResultsPage() {
         }
 
         fetchPage(queryParam, pageParam);
-        return () => {
-            fetchControllerRef.current?.abort();
-        };
     }, [queryParam, pageParam]);
 
     function updateSearchParams(nextQuery: string, nextPage: number) {
