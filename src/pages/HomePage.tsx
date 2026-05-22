@@ -424,20 +424,20 @@ export default function HomePage() {
                                         Ta collection est vide pour le moment. Cherche un vinyle et ajoute le.
                                     </div>
                                 ) : (
-                                    <div className="grid" style={{ marginTop: 12 }}>
+                                    <div className="grid homeLibraryGrid" style={{ marginTop: 12 }}>
                                         {collectionItems.map((r) => (
                                             <Link
                                                 key={`c_${r.discogs_release_id}`}
                                                 to={`/release/${r.discogs_release_id}`}
                                                 className="cardLink"
                                             >
-                                                <div className="card">
-                                                    <div className="thumb">
+                                                <div className="card homeLibraryCard">
+                                                    <div className="thumb homeLibraryThumb">
                                                         {r.thumb_url ? (
                                                             <img className="thumbImg" src={r.thumb_url} alt={r.title} />
                                                         ) : null}
                                                     </div>
-                                                    <div className="cardBody">
+                                                    <div className="cardBody homeLibraryCardBody">
                                                         <div className="cardTitle">{r.title}</div>
                                                         <div className="muted small">
                                                             {r.artist} · {r.year ?? "?"}
@@ -457,20 +457,20 @@ export default function HomePage() {
                                         Ta wishlist est vide pour le moment. Cherche un vinyle et ajoute le.
                                     </div>
                                 ) : (
-                                    <div className="grid" style={{ marginTop: 12 }}>
+                                    <div className="grid homeLibraryGrid" style={{ marginTop: 12 }}>
                                         {wishlistItems.map((r) => (
                                             <Link
                                                 key={`w_${r.discogs_release_id}`}
                                                 to={`/release/${r.discogs_release_id}`}
                                                 className="cardLink"
                                             >
-                                                <div className="card">
-                                                    <div className="thumb">
+                                                <div className="card homeLibraryCard">
+                                                    <div className="thumb homeLibraryThumb">
                                                         {r.thumb_url ? (
                                                             <img className="thumbImg" src={r.thumb_url} alt={r.title} />
                                                         ) : null}
                                                     </div>
-                                                    <div className="cardBody">
+                                                    <div className="cardBody homeLibraryCardBody">
                                                         <div className="cardTitle">{r.title}</div>
                                                         <div className="muted small">
                                                             {r.artist} · {r.year ?? "?"}
