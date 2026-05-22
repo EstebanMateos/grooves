@@ -1,14 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 
-import {supabase} from '../supabaseClient';
 import {isDebugEnabled} from '../utils/supabaseDebug';
 import {useAuthSession} from './useAuthSession';
-import {getCollectionGroupId} from '../utils/collectionGroup';
-
-type LibraryIndex = {
-  collection_ids: Set<number>; wishlist_ids: Set<number>;
-};
-type JoinedRecordRow = {records: {discogs_release_id: number|null}|null};
+import {loadLibraryIndex, type LibraryIndex} from '../utils/libraryApi';
 
 export function useUserLibraryIndex() {
   const auth = useAuthSession();
@@ -48,49 +42,13 @@ export function useUserLibraryIndex() {
 
       activeUserIdRef.current = userId;
 
-      const collection_ids = new Set<number>();
-      const wishlist_ids = new Set<number>();
-
-      const groupId = await getCollectionGroupId(userId);
-      const emptyResponse = {data: [], error: null} as const;
-      const [collectionResp, wishlistResp] = await Promise.all([
-        groupId ?
-            supabase.from('collection_group_items')
-                .select('records ( discogs_release_id )')
-                .eq('group_id', groupId) :
-            Promise.resolve(emptyResponse),
-        supabase.from('user_records')
-            .select('records ( discogs_release_id )')
-            .eq('user_id', userId)
-            .eq('list_type', 'wishlist')
-      ]);
-
-      if (collectionResp.error) {
-        throw collectionResp.error;
-      }
-      if (wishlistResp.error) {
-        throw wishlistResp.error;
-      }
-
-      ((collectionResp.data ?? []) as unknown as JoinedRecordRow[]).forEach((row) => {
-        const rid = row.records?.discogs_release_id;
-        if (rid) {
-          collection_ids.add(rid);
-        }
-      });
-
-      ((wishlistResp.data ?? []) as unknown as JoinedRecordRow[]).forEach((row) => {
-        const rid = row.records?.discogs_release_id;
-        if (rid) {
-          wishlist_ids.add(rid);
-        }
-      });
+      const nextIndex = await loadLibraryIndex(userId);
 
       if (isStale()) {
         return;
       }
 
-      setIndex({collection_ids, wishlist_ids});
+      setIndex(nextIndex);
       setError('');
     } catch (error) {
       if (isStale()) {

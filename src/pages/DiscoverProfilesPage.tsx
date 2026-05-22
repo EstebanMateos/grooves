@@ -220,55 +220,66 @@ export default function DiscoverProfilesPage() {
         }
         const userId = auth.user_id;
 
+        const previousFavorites = favorites;
         const wasFavorite = favorites.includes(username);
         const optimistic = wasFavorite ? favorites.filter((u) => u !== username) : [...favorites, username];
         setFavorites(optimistic);
         setFavoriteBusy(username);
 
-        const { data: profileRow, error: profileError } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("username", username)
-            .maybeSingle();
+        try {
+            const { data: profileRow, error: profileError } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("username", username)
+                .maybeSingle();
 
-        if (profileError || !profileRow?.id) {
-            setFavorites(favorites);
-            setFavoriteStatus(profileError?.message ?? "Impossible de mettre à jour ce favori.");
+            if (profileError || !profileRow?.id) {
+                setFavorites(previousFavorites);
+                setFavoriteStatus(profileError?.message ?? "Impossible de mettre à jour ce favori.");
+                return;
+            }
+
+            if (wasFavorite) {
+                const { error: delError } = await supabase
+                    .from("profile_favorites")
+                    .delete()
+                        .eq("user_id", userId)
+                        .eq("favorite_user_id", profileRow.id);
+                if (delError) {
+                    setFavorites(previousFavorites);
+                    setFavoriteStatus(delError.message);
+                    if (isDebugEnabled()) {
+                        console.error("[DiscoverProfilesPage] delete favorite failed", delError);
+                    }
+                    return;
+                }
+            } else {
+                const { error: insError } = await supabase
+                    .from("profile_favorites")
+                    .upsert(
+                        { user_id: userId, favorite_user_id: profileRow.id },
+                        { onConflict: "user_id,favorite_user_id", ignoreDuplicates: true }
+                    );
+                if (insError) {
+                    setFavorites(previousFavorites);
+                    setFavoriteStatus(insError.message);
+                    if (isDebugEnabled()) {
+                        console.error("[DiscoverProfilesPage] add favorite failed", insError);
+                    }
+                    return;
+                }
+            }
+
+            await loadFavorites(userId);
+        } catch (e) {
+            setFavorites(previousFavorites);
+            setFavoriteStatus(e instanceof Error ? e.message : String(e));
+            if (isDebugEnabled()) {
+                console.error("[DiscoverProfilesPage] toggle favorite failed", e);
+            }
+        } finally {
             setFavoriteBusy(null);
-            return;
         }
-
-        if (wasFavorite) {
-            const { error: delError } = await supabase
-                .from("profile_favorites")
-                .delete()
-                    .eq("user_id", userId)
-                    .eq("favorite_user_id", profileRow.id);
-            if (delError) {
-                setFavorites(favorites);
-                setFavoriteStatus(delError.message);
-                if (isDebugEnabled()) {
-                    console.error("[DiscoverProfilesPage] delete favorite failed", delError);
-                }
-            }
-        } else {
-            const { error: insError } = await supabase
-                .from("profile_favorites")
-                .upsert(
-                    { user_id: userId, favorite_user_id: profileRow.id },
-                    { onConflict: "user_id,favorite_user_id", ignoreDuplicates: true }
-                );
-            if (insError) {
-                setFavorites(favorites);
-                setFavoriteStatus(insError.message);
-                if (isDebugEnabled()) {
-                    console.error("[DiscoverProfilesPage] add favorite failed", insError);
-                }
-            }
-        }
-
-        await loadFavorites(userId);
-        setFavoriteBusy(null);
     }
 
     useEffect(() => {

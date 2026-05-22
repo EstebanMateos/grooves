@@ -6,6 +6,12 @@ import { supabase } from "../supabaseClient";
 import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import { isDebugEnabled } from "../utils/supabaseDebug";
 import { ensureCollectionGroupId, getCollectionGroupId } from "../utils/collectionGroup";
+import {
+    getRecordIdByDiscogsReleaseId,
+    removeCollectionRecord,
+    removeWishlistRecord
+} from "../utils/libraryApi";
+import { getDiscogsProxyBaseUrl } from "../utils/discogsProxy";
 import BackButton from "../components/BackButton";
 
 type DiscogsRelease = {
@@ -84,7 +90,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             setRelease(null);
 
             try {
-                const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
+                const baseUrl = getDiscogsProxyBaseUrl();
                 const resp = await fetchWithRateLimit(
                     `${baseUrl}/release/${encodeURIComponent(discogsReleaseId)}`,
                     { signal: controller.signal }
@@ -126,20 +132,6 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             return null;
         }
         return auth.user_id;
-    }
-
-    async function getRecordIdByDiscogsReleaseId(discogsReleaseIdValue: number): Promise<string | null> {
-        const { data, error: dbError } = await supabase
-            .from("records")
-            .select("id")
-            .eq("discogs_release_id", discogsReleaseIdValue)
-            .maybeSingle();
-
-        if (dbError) {
-            throw dbError;
-        }
-
-        return data?.id ?? null;
     }
 
     async function upsertRecordFromRelease(releaseData: DiscogsRelease): Promise<string> {
@@ -202,16 +194,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             const recordId = await upsertRecordFromRelease(release);
 
             if (listType === "collection" && inWishlistNow) {
-                const { error: rmWishError } = await supabase
-                    .from("user_records")
-                    .delete()
-                    .eq("user_id", userId)
-                    .eq("record_id", recordId)
-                    .eq("list_type", "wishlist");
-
-                if (rmWishError) {
-                    throw rmWishError;
-                }
+                await removeWishlistRecord(recordId, userId);
             }
 
             if (listType === "collection") {
@@ -287,26 +270,9 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                     return;
                 }
 
-                const { error: collError } = await supabase
-                    .from("collection_group_items")
-                    .delete()
-                    .eq("group_id", groupId)
-                    .eq("record_id", recordId);
-
-                if (collError) {
-                    throw collError;
-                }
+                await removeCollectionRecord(recordId, groupId);
             } else {
-                const { error: delError } = await supabase
-                    .from("user_records")
-                    .delete()
-                    .eq("user_id", userId)
-                    .eq("record_id", recordId)
-                    .eq("list_type", "wishlist");
-
-                if (delError) {
-                    throw delError;
-                }
+                await removeWishlistRecord(recordId, userId);
             }
 
             await library.reload();

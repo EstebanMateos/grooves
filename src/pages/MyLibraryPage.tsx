@@ -2,43 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { useAuthSession } from "../hooks/useAuthSession";
-import { supabase } from "../supabaseClient";
 import { isDebugEnabled } from "../utils/supabaseDebug";
-import { getCollectionGroupId } from "../utils/collectionGroup";
 import BackButton from "../components/BackButton";
 import { LIBRARY_CACHE_PREFIX } from "../utils/libraryCache";
+import {
+    loadLibraryItems,
+    removeCollectionItemById,
+    removeWishlistItemById,
+    type LibraryItem
+} from "../utils/libraryApi";
 
-type RecordRow = {
-    id: string;
-    discogs_release_id: number;
-    title: string;
-    artist: string;
-    year: number | null;
-    country: string | null;
-    thumb_url: string | null;
-    label: string | null;
-    catno: string | null;
-};
-
-type CollectionGroupItemRow = {
-    id: string;
-    record_id: string;
-    created_at: string;
-};
-
-type WishlistRecordRow = {
-    id: string;
-    record_id: string;
-    created_at: string;
-};
-
-type LibraryItemRow = {
-    id: string;
-    list_type: "collection" | "wishlist";
-    record_id: string;
-    record: RecordRow | null;
-    created_at: string;
-};
+type LibraryItemRow = LibraryItem;
 
 type FilterType = "collection" | "wishlist" | "all";
 type SortKey = "recent" | "title" | "artist" | "year";
@@ -118,42 +92,13 @@ export default function MyLibraryPage() {
         setStatus("");
 
         try {
-            const groupId = await getCollectionGroupId(userId);
+            const result = await loadLibraryItems(userId);
             if (isStale()) {
                 return;
             }
-            setCollectionGroupId(groupId);
+            setCollectionGroupId(result.collectionGroupId);
 
-            const emptyResponse = { data: [], error: null } as const;
-            const [collectionResp, wishlistResp] = await Promise.all([
-                groupId
-                    ? supabase
-                        .from("collection_group_items")
-                        .select("id,record_id,created_at")
-                        .eq("group_id", groupId)
-                        .order("created_at", { ascending: false })
-                        .limit(400)
-                    : Promise.resolve(emptyResponse),
-                supabase
-                    .from("user_records")
-                    .select("id,record_id,created_at")
-                    .eq("user_id", userId)
-                    .eq("list_type", "wishlist")
-                    .order("created_at", { ascending: false })
-                    .limit(400)
-            ]);
-
-            if (collectionResp.error) {
-                throw collectionResp.error;
-            }
-            if (wishlistResp.error) {
-                throw wishlistResp.error;
-            }
-
-            const collectionItems = (collectionResp.data ?? []) as CollectionGroupItemRow[];
-            const wishlistItems = (wishlistResp.data ?? []) as WishlistRecordRow[];
-
-            if (collectionItems.length === 0 && wishlistItems.length === 0) {
+            if (result.items.length === 0) {
                 if (isStale()) {
                     return;
                 }
@@ -162,47 +107,12 @@ export default function MyLibraryPage() {
                 return;
             }
 
-            const recordIds = Array.from(
-                new Set([...collectionItems, ...wishlistItems].map((x) => x.record_id))
-            );
-
-            const { data: recData, error: recError } = await supabase
-                .from("records")
-                .select("id,discogs_release_id,title,artist,year,country,thumb_url,label,catno")
-                .in("id", recordIds);
-
-            if (recError) {
-                throw recError;
-            }
-
-            const recordById = new Map<string, RecordRow>();
-            for (const r of (recData ?? []) as RecordRow[]) {
-                recordById.set(r.id, r);
-            }
-
-            const merged: LibraryItemRow[] = [
-                ...collectionItems.map((item) => ({
-                    id: item.id,
-                    list_type: "collection" as const,
-                    record_id: item.record_id,
-                    record: recordById.get(item.record_id) ?? null,
-                    created_at: item.created_at
-                })),
-                ...wishlistItems.map((item) => ({
-                    id: item.id,
-                    list_type: "wishlist" as const,
-                    record_id: item.record_id,
-                    record: recordById.get(item.record_id) ?? null,
-                    created_at: item.created_at
-                }))
-            ];
-
             if (isStale()) {
                 return;
             }
 
-            setItems(merged);
-            writeCache(userId, merged);
+            setItems(result.items);
+            writeCache(userId, result.items);
         } catch (e) {
             if (isStale()) {
                 return;
@@ -261,25 +171,9 @@ export default function MyLibraryPage() {
                 if (!collectionGroupId) {
                     throw new Error("Groupe de collection introuvable.");
                 }
-                const { error: collError } = await supabase
-                    .from("collection_group_items")
-                    .delete()
-                    .eq("id", userRecord.id)
-                    .eq("group_id", collectionGroupId);
-
-                if (collError) {
-                    throw collError;
-                }
+                await removeCollectionItemById(userRecord.id, collectionGroupId);
             } else {
-                const { error: delError } = await supabase
-                    .from("user_records")
-                    .delete()
-                    .eq("id", userRecord.id)
-                    .eq("user_id", userId);
-
-                if (delError) {
-                    throw delError;
-                }
+                await removeWishlistItemById(userRecord.id, userId);
             }
 
             setItems((prev) => {

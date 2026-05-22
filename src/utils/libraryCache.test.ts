@@ -11,4 +11,14 @@ describe("library cache", () => {
         expect(window.localStorage.getItem(`${LIBRARY_CACHE_PREFIX}a`)).toBeNull();
         expect(window.localStorage.getItem(`${LIBRARY_CACHE_PREFIX}b`)).toBe("b");
     });
+
+    it("clears every library cache when no user is provided", () => {
+        window.localStorage.setItem(`${LIBRARY_CACHE_PREFIX}a`, "a");
+        window.localStorage.setItem(`${LIBRARY_CACHE_PREFIX}b`, "b");
+        window.localStorage.setItem("other", "c");
+        clearLibraryCache();
+        expect(window.localStorage.getItem(`${LIBRARY_CACHE_PREFIX}a`)).toBeNull();
+        expect(window.localStorage.getItem(`${LIBRARY_CACHE_PREFIX}b`)).toBeNull();
+        expect(window.localStorage.getItem("other")).toBe("c");
+    });
 });

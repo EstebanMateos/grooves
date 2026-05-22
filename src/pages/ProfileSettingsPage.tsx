@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { supabase } from "../supabaseClient";
 import BackButton from "../components/BackButton";
+import { clearLibraryCache } from "../utils/libraryCache";
 
 type ProfileRow = {
     id: string;
@@ -458,6 +459,7 @@ export default function ProfileSettingsPage() {
     async function signOut() {
         setStatus("");
         setError("");
+        clearLibraryCache(auth.user_id);
         const { error: signOutError } = await supabase.auth.signOut();
         if (signOutError) {
             setError(String(signOutError));

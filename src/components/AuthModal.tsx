@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { getEmailRedirectUrl } from "../utils/authRedirect";
+import { ensureProfileUsername, formatAuthError } from "../utils/authProfile";
 
 type Props = {
     open: boolean;
@@ -19,18 +20,6 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
     const [statusType, setStatusType] = useState<"error" | "success" | "">("");
     const [loading, setLoading] = useState<boolean>(false);
 
-    function formatAuthError(error: unknown): string {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!message) {
-            return "Erreur inconnue.";
-        }
-        const normalized = message.toLowerCase();
-        if (normalized.includes("timeout") || normalized.includes("expirée")) {
-            return "Délai dépassé. Vérifie ta connexion et réessaie.";
-        }
-        return message;
-    }
-
     useEffect(() => {
         if (open) {
             setStatus("");
@@ -44,11 +33,15 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) {
                 setStatus(error.message);
                 setStatusType("error");
                 return;
+            }
+            const userId = data.session?.user?.id ?? data.user?.id ?? null;
+            if (userId) {
+                await ensureProfileUsername(userId);
             }
             setStatus("Connexion réussie.");
             setStatusType("success");

@@ -1,33 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
 import { fetchWithRateLimit } from "../utils/fetchWithRateLimit";
 import { useUserProfileSummary } from "../hooks/useUserProfileSummary";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { isDebugEnabled } from "../utils/supabaseDebug";
-import { getCollectionGroupId } from "../utils/collectionGroup";
-
-type RecordRow = {
-    id: string;
-    discogs_release_id: number;
-    title: string;
-    artist: string;
-    year: number | null;
-    country: string | null;
-    thumb_url: string | null;
-    label: string | null;
-    catno: string | null;
-};
-
-type CollectionGroupItemRow = {
-    record_id: string;
-    created_at: string;
-};
-
-type WishlistRecordRow = {
-    record_id: string;
-    created_at: string;
-};
+import { loadLibraryPreview as fetchLibraryPreview, type LibraryRecord } from "../utils/libraryApi";
+import {
+    isDiscogsSearchQueryValid,
+    MIN_DISCOGS_SEARCH_LENGTH,
+    normalizeDiscogsSearchQuery
+} from "../utils/discogsSearch";
+import { getDiscogsProxyBaseUrl } from "../utils/discogsProxy";
 
 type DiscogsReleaseSearchItem = {
     id: number;
@@ -48,8 +31,6 @@ type DiscogsSearchResponse = {
     };
     results?: DiscogsReleaseSearchItem[];
 };
-
-const MIN_DISCOGS_SEARCH_LENGTH = 3;
 
 export default function HomePage() {
     const navigate = useNavigate();
@@ -98,8 +79,8 @@ export default function HomePage() {
     const [libraryLoading, setLibraryLoading] = useState<boolean>(false);
     const [libraryError, setLibraryError] = useState<string>("");
 
-    const [collectionItems, setCollectionItems] = useState<RecordRow[]>([]);
-    const [wishlistItems, setWishlistItems] = useState<RecordRow[]>([]);
+    const [collectionItems, setCollectionItems] = useState<LibraryRecord[]>([]);
+    const [wishlistItems, setWishlistItems] = useState<LibraryRecord[]>([]);
 
     const [query, setQuery] = useState<string>("");
     const [searchLoading, setSearchLoading] = useState<boolean>(false);
@@ -130,43 +111,14 @@ export default function HomePage() {
         setLibraryError("");
 
         try {
-            const groupId = await getCollectionGroupId(k_user_id);
-
             debugTime("[HomePage] collection_group_items");
-            const emptyResponse = { data: [], error: null } as const;
-            const [collectionResp, wishlistResp] = await Promise.all([
-                groupId
-                    ? supabase
-                        .from("collection_group_items")
-                        .select("record_id,created_at")
-                        .eq("group_id", groupId)
-                        .order("created_at", { ascending: false })
-                        .limit(120)
-                    : Promise.resolve(emptyResponse),
-                supabase
-                    .from("user_records")
-                    .select("record_id,created_at")
-                    .eq("user_id", k_user_id)
-                    .eq("list_type", "wishlist")
-                    .order("created_at", { ascending: false })
-                    .limit(120)
-            ]);
+            const preview = await fetchLibraryPreview(k_user_id);
             debugTimeEnd("[HomePage] collection_group_items");
 
-            debugLog("collection count", collectionResp.data?.length, "error", collectionResp.error);
-            debugLog("wishlist count", wishlistResp.data?.length, "error", wishlistResp.error);
+            debugLog("collection count", preview.collection.length);
+            debugLog("wishlist count", preview.wishlist.length);
 
-            if (collectionResp.error) {
-                throw collectionResp.error;
-            }
-            if (wishlistResp.error) {
-                throw wishlistResp.error;
-            }
-
-            const collectionRows = (collectionResp.data ?? []) as CollectionGroupItemRow[];
-            const wishlistRows = (wishlistResp.data ?? []) as WishlistRecordRow[];
-
-            if (collectionRows.length === 0 && wishlistRows.length === 0) {
+            if (preview.collection.length === 0 && preview.wishlist.length === 0) {
                 debugLog("no library rows");
                 if (libraryLoadSeqRef.current === request_id) {
                     setCollectionItems([]);
@@ -175,58 +127,13 @@ export default function HomePage() {
                 return;
             }
 
-            const record_ids = Array.from(
-                new Set([...collectionRows, ...wishlistRows].map((x) => x.record_id))
-            );
-            debugLog("record_ids count", record_ids.length);
-
-            debugTime("[HomePage] records");
-
-            const { data: recData, error: recError } = await supabase
-                .from("records")
-                .select("id,discogs_release_id,title,artist,year,country,thumb_url,label,catno")
-                .in("id", record_ids);
-
-            debugTimeEnd("[HomePage] records");
-
-            debugLog("records count", recData?.length, "error", recError);
-
-            if (recError) {
-                throw recError;
-            }
-
-            const record_by_id = new Map<string, RecordRow>();
-            for (const r of (recData ?? []) as RecordRow[]) {
-                record_by_id.set(r.id, r);
-            }
-
-            const collection: RecordRow[] = [];
-            const wishlist: RecordRow[] = [];
-
-            for (const item of collectionRows) {
-                const r = record_by_id.get(item.record_id);
-                if (r) {
-                    collection.push(r);
-                }
-            }
-
-            for (const item of wishlistRows) {
-                const r = record_by_id.get(item.record_id);
-                if (r) {
-                    wishlist.push(r);
-                }
-            }
-
-            debugLog("collection size", collection.length);
-            debugLog("wishlist size", wishlist.length);
-
             if (libraryLoadSeqRef.current !== request_id) {
                 debugWarn("stale request, skip state update");
                 return;
             }
 
-            setCollectionItems(collection.slice(0, 8));
-            setWishlistItems(wishlist.slice(0, 8));
+            setCollectionItems(preview.collection.slice(0, 8));
+            setWishlistItems(preview.wishlist.slice(0, 8));
         } catch (e) {
             debugError("[HomePage] loadLibraryPreview error", e);
             if (libraryLoadSeqRef.current === request_id) {
@@ -280,7 +187,7 @@ export default function HomePage() {
     }, []);
 
     async function fetchSearchPage(nextPage: number, append: boolean) {
-        const trimmedQuery = query.trim();
+        const normalizedQuery = normalizeDiscogsSearchQuery(query);
         const request_id = searchLoadSeqRef.current + 1;
         searchLoadSeqRef.current = request_id;
         searchControllerRef.current?.abort();
@@ -290,15 +197,15 @@ export default function HomePage() {
 
         debugGroup("[HomePage] search");
         debugLog("request_id", request_id);
-        debugLog("query", trimmedQuery);
+        debugLog("query", normalizedQuery);
         debugLog("page", nextPage);
 
         setSearchError("");
         setSearchLoading(true);
 
         try {
-            const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
-            const url = `${baseUrl}/search?q=${encodeURIComponent(trimmedQuery)}&type=release&page=${nextPage}&per_page=50`;
+            const baseUrl = getDiscogsProxyBaseUrl();
+            const url = `${baseUrl}/search?q=${encodeURIComponent(normalizedQuery)}&type=release&page=${nextPage}&per_page=50`;
 
             const resp = await fetchWithRateLimit(url, { signal: controller.signal });
             debugLog("search status", resp.status);
@@ -344,8 +251,8 @@ export default function HomePage() {
     }
 
     async function search() {
-        const trimmedQuery = query.trim();
-        if (trimmedQuery.length < MIN_DISCOGS_SEARCH_LENGTH) {
+        const normalizedQuery = normalizeDiscogsSearchQuery(query);
+        if (!isDiscogsSearchQueryValid(normalizedQuery)) {
             searchControllerRef.current?.abort();
             setResults([]);
             setPage(1);
@@ -354,8 +261,8 @@ export default function HomePage() {
             setSearchError(`Entre au moins ${MIN_DISCOGS_SEARCH_LENGTH} caractères.`);
             return;
         }
-        if (query !== trimmedQuery) {
-            setQuery(trimmedQuery);
+        if (query !== normalizedQuery) {
+            setQuery(normalizedQuery);
         }
         searchControllerRef.current?.abort();
         setResults([]);
@@ -365,7 +272,7 @@ export default function HomePage() {
         await fetchSearchPage(1, false);
     }
 
-    const canSearch = query.trim().length >= MIN_DISCOGS_SEARCH_LENGTH;
+    const canSearch = isDiscogsSearchQueryValid(query);
     const canOpenSearch = !searchLoading && canSearch && results.length > 0;
 
     const heroSubtitle = useMemo(() => {
@@ -477,7 +384,7 @@ export default function HomePage() {
                                 <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
                                     <button
                                         className="btn btnGhost"
-                                        onClick={() => navigate(`/search?q=${encodeURIComponent(query.trim())}`)}
+                                        onClick={() => navigate(`/search?q=${encodeURIComponent(normalizeDiscogsSearchQuery(query))}`)}
                                         disabled={!canOpenSearch}
                                     >
                                         Charger plus
