@@ -4,8 +4,10 @@ import { useUserLibraryIndex } from "../hooks/useUserLibraryIndex";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { isDebugEnabled } from "../utils/supabaseDebug";
 import BackButton from "../components/BackButton";
+import { ensureCollectionGroupId } from "../utils/collectionGroup";
 import { LIBRARY_CACHE_PREFIX } from "../utils/libraryCache";
 import {
+    addCollectionRecord,
     loadLibraryItems,
     removeCollectionItemById,
     removeWishlistItemById,
@@ -17,6 +19,7 @@ type LibraryItemRow = LibraryItem;
 type FilterType = "collection" | "wishlist" | "all";
 type SortKey = "recent" | "title" | "artist" | "year";
 type ViewMode = "grid" | "list";
+type BusyAction = "remove" | "move";
 
 type CachedLibrary = {
     updated_at: string;
@@ -30,6 +33,7 @@ export default function MyLibraryPage() {
     const [items, setItems] = useState<LibraryItemRow[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
     const [error, setError] = useState<string>("");
     const [status, setStatus] = useState<string>("");
     const [filter, setFilter] = useState<FilterType>("all");
@@ -73,6 +77,7 @@ export default function MyLibraryPage() {
         setStatus("");
         setError("");
         setBusyId(null);
+        setBusyAction(null);
         setLoading(false);
         setCollectionGroupId(null);
     }
@@ -158,6 +163,7 @@ export default function MyLibraryPage() {
         setError("");
         setStatus("");
         setBusyId(userRecord.id);
+        setBusyAction("remove");
 
         try {
             if (auth.is_loading) {
@@ -195,6 +201,79 @@ export default function MyLibraryPage() {
             setError(String(e));
         } finally {
             setBusyId(null);
+            setBusyAction(null);
+        }
+    }
+
+    async function moveWishlistItemToCollection(userRecord: LibraryItemRow) {
+        if (userRecord.list_type !== "wishlist" || !userRecord.record) {
+            return;
+        }
+
+        setError("");
+        setStatus("");
+        setBusyId(userRecord.id);
+        setBusyAction("move");
+
+        try {
+            if (auth.is_loading) {
+                return;
+            }
+            if (!auth.is_authenticated || !auth.user_id) {
+                setError("Merci de te connecter.");
+                return;
+            }
+
+            const userId = auth.user_id;
+            const groupId = collectionGroupId ?? await ensureCollectionGroupId();
+            const existingCollectionItem = items.find(
+                (item) => item.list_type === "collection" && item.record_id === userRecord.record_id
+            );
+
+            const collectionItem = existingCollectionItem
+                ? {
+                    id: existingCollectionItem.id,
+                    record_id: existingCollectionItem.record_id,
+                    created_at: existingCollectionItem.created_at
+                }
+                : await addCollectionRecord(userRecord.record_id, userId, groupId);
+
+            await removeWishlistItemById(userRecord.id, userId);
+            setCollectionGroupId(groupId);
+
+            setItems((prev) => {
+                const withoutWishlist = prev.filter(
+                    (item) => !(item.id === userRecord.id && item.list_type === "wishlist")
+                );
+                const alreadyInCollection = withoutWishlist.some(
+                    (item) => item.list_type === "collection" && item.record_id === userRecord.record_id
+                );
+                const next = alreadyInCollection
+                    ? withoutWishlist
+                    : [
+                        {
+                            id: collectionItem.id,
+                            list_type: "collection" as const,
+                            record_id: collectionItem.record_id,
+                            record: userRecord.record,
+                            created_at: collectionItem.created_at
+                        },
+                        ...withoutWishlist
+                    ];
+                writeCache(userId, next);
+                return next;
+            });
+
+            await library.reload();
+            setStatus("Ajouté à la collection.");
+        } catch (e) {
+            if (isDebugEnabled()) {
+                console.error("[MyLibraryPage] moveWishlistItemToCollection failed", e);
+            }
+            setError(String(e));
+        } finally {
+            setBusyId(null);
+            setBusyAction(null);
         }
     }
 
@@ -269,12 +348,15 @@ export default function MyLibraryPage() {
         if (!r) {
             return null;
         }
+        const isBusy = busyId === ur.id;
+        const isMoving = isBusy && busyAction === "move";
+        const isRemoving = isBusy && busyAction === "remove";
 
         if (viewMode === "grid") {
             return (
                 <div key={ur.id} className="libraryGridItem">
                     <Link to={`/release/${r.discogs_release_id}`} className="cardLink libraryCoverLink">
-                        <div className="libraryCoverCard">
+                        <div className={`libraryCoverCard ${ur.list_type === "collection" ? "libraryCoverCardCollection" : "libraryCoverCardWishlist"}`}>
                             <div className="libraryCoverThumb">
                                 {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
                             </div>
@@ -283,12 +365,21 @@ export default function MyLibraryPage() {
                             </span>
                         </div>
                     </Link>
+                    {ur.list_type === "wishlist" ? (
+                        <button
+                            onClick={() => moveWishlistItemToCollection(ur)}
+                            disabled={isBusy}
+                            className="btn btnPrimary libraryGridAction"
+                        >
+                            {isMoving ? "Ajout…" : "Collection"}
+                        </button>
+                    ) : null}
                     <button
                         onClick={() => removeItem(ur)}
-                        disabled={busyId === ur.id}
-                        className="btn btnGhost libraryGridRemove"
+                        disabled={isBusy}
+                        className="btn btnGhost libraryGridAction"
                     >
-                        {busyId === ur.id ? "Retrait…" : "Retirer"}
+                        {isRemoving ? "Retrait…" : "Retirer"}
                     </button>
                 </div>
             );
@@ -326,16 +417,25 @@ export default function MyLibraryPage() {
                         {r.catno ? ` · ${r.catno}` : ""}
                     </div>
 
-                    <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                    <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
                         <Link to={`/release/${r.discogs_release_id}`} className="btn btnGhost">
                             Ouvrir
                         </Link>
+                        {ur.list_type === "wishlist" ? (
+                            <button
+                                onClick={() => moveWishlistItemToCollection(ur)}
+                                disabled={isBusy}
+                                className="btn btnPrimary"
+                            >
+                                {isMoving ? "Ajout…" : "Mettre en collection"}
+                            </button>
+                        ) : null}
                         <button
                             onClick={() => removeItem(ur)}
-                            disabled={busyId === ur.id}
+                            disabled={isBusy}
                             className="btn btnGhost"
                         >
-                            Retirer
+                            {isRemoving ? "Retrait…" : "Retirer"}
                         </button>
                     </div>
                 </div>

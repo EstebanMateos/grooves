@@ -419,6 +419,32 @@ a {
     transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
+.libraryCoverCard::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+.libraryCoverCardCollection {
+    border-color: rgba(255, 194, 70, 0.62);
+    box-shadow: inset 0 0 0 2px rgba(255, 194, 70, 0.22);
+}
+
+.libraryCoverCardCollection::after {
+    box-shadow: inset 0 0 0 4px rgba(255, 176, 0, 0.14);
+}
+
+.libraryCoverCardWishlist {
+    border-color: rgba(92, 220, 200, 0.62);
+    box-shadow: inset 0 0 0 2px rgba(92, 220, 200, 0.20);
+}
+
+.libraryCoverCardWishlist::after {
+    box-shadow: inset 0 0 0 4px rgba(92, 220, 200, 0.13);
+}
+
 .libraryCoverCard:hover {
     transform: translateY(-2px);
     border-color: var(--stroke2);
@@ -438,7 +464,7 @@ a {
     max-width: calc(100% - 16px);
 }
 
-.libraryGridRemove {
+.libraryGridAction {
     width: 100%;
     margin-top: 8px;
 }
@@ -460,7 +486,11 @@ a {
     }
 
     .libraryCoverPill {
-        display: none;
+        left: 6px;
+        bottom: 6px;
+        max-width: calc(100% - 12px);
+        padding: 3px 7px;
+        font-size: 10px;
     }
 
     .viewToggle {

@@ -236,6 +236,31 @@ export async function removeWishlistItemById(itemId: string, userId: string): Pr
     }
 }
 
+export async function addCollectionRecord(recordId: string, userId: string, groupId: string): Promise<{
+    id: string;
+    record_id: string;
+    created_at: string;
+}> {
+    const { data, error } = await supabase
+        .from("collection_group_items")
+        .upsert(
+            {
+                group_id: groupId,
+                record_id: recordId,
+                added_by_user_id: userId
+            },
+            { onConflict: "group_id,record_id" }
+        )
+        .select("id,record_id,created_at")
+        .single();
+
+    if (error || !data?.id) {
+        throw error ?? new Error("Impossible d'ajouter à la collection.");
+    }
+
+    return data as { id: string; record_id: string; created_at: string };
+}
+
 export async function getRecordIdByDiscogsReleaseId(discogsReleaseId: number): Promise<string | null> {
     const { data, error } = await supabase
         .from("records")
