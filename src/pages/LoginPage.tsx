@@ -29,7 +29,7 @@ export default function LoginPage() {
                 options: { emailRedirectTo: redirectTo }
             });
             if (error) {
-                setStatus(error.message);
+                setStatus(formatAuthError(error));
                 setStatusType("error");
             } else {
                 navigate("/account-created");
@@ -49,7 +49,7 @@ export default function LoginPage() {
         try {
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) {
-                setStatus(error.message);
+                setStatus(formatAuthError(error));
                 setStatusType("error");
                 return;
             }
@@ -137,7 +137,7 @@ export default function LoginPage() {
                     </label>
 
                     <button className="btn btnPrimary" type="submit" disabled={!email || !password || loading}>
-                        {mode === "signup" ? "Créer mon compte" : "Se connecter"}
+                        {loading ? "Traitement…" : mode === "signup" ? "Créer mon compte" : "Se connecter"}
                     </button>
 
                     {status ? (
@@ -151,7 +151,7 @@ export default function LoginPage() {
                             <div className="muted" style={{ marginBottom: 8 }}>
                                 Pas encore de compte ?
                             </div>
-                            <button className="btn btnGhost" type="button" onClick={() => setMode("signup")}>
+                            <button className="btn btnGhost" type="button" onClick={() => setMode("signup")} disabled={loading}>
                                 Créer un compte
                             </button>
                         </>
@@ -160,7 +160,7 @@ export default function LoginPage() {
                             <div className="muted" style={{ marginBottom: 8 }}>
                                 Déjà un compte ?
                             </div>
-                            <button className="btn btnGhost" type="button" onClick={() => setMode("signin")}>
+                            <button className="btn btnGhost" type="button" onClick={() => setMode("signin")} disabled={loading}>
                                 Se connecter
                             </button>
                         </>

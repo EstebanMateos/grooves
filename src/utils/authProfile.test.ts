@@ -65,6 +65,6 @@ describe("auth profile helpers", () => {
     });
 
     it("formats empty auth errors", () => {
-        expect(formatAuthError("")).toBe("Erreur inconnue.");
+        expect(formatAuthError("")).toBe("Une erreur est survenue. Réessaie.");
     });
 });

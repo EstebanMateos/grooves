@@ -7,6 +7,7 @@ import {
     normalizeDiscogsSearchQuery
 } from "../utils/discogsSearch";
 import { getDiscogsProxyBaseUrl } from "../utils/discogsProxy";
+import { formatUiError } from "../utils/uiError";
 
 type DiscogsReleaseSearchItem = {
     id: number;
@@ -123,7 +124,7 @@ export default function SearchResultsPage() {
             if (isStale()) {
                 return;
             }
-            setError(String(e));
+            setError(formatUiError(e));
         } finally {
             if (!isStale()) {
                 setLoading(false);
@@ -187,8 +188,12 @@ export default function SearchResultsPage() {
         <div className="page">
             <div className="panel">
                 <div className="panelTitle">Recherche avancée</div>
+                <label className="srOnly" htmlFor="search-results-input">
+                    Recherche Discogs
+                </label>
                 <div className="searchRow">
                     <input
+                        id="search-results-input"
                         className="input"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -200,7 +205,7 @@ export default function SearchResultsPage() {
                         placeholder="Daft Punk, Discovery, 10th anniversary"
                     />
                     <button className="btn btnPrimary" onClick={submitSearch} disabled={!canSearch || loading}>
-                        Rechercher
+                        {loading ? "Recherche…" : "Rechercher"}
                     </button>
                 </div>
 

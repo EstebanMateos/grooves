@@ -35,7 +35,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
         try {
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) {
-                setStatus(error.message);
+                setStatus(formatAuthError(error));
                 setStatusType("error");
                 return;
             }
@@ -68,7 +68,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                 options: { emailRedirectTo: redirectTo }
             });
             if (error) {
-                setStatus(error.message);
+                setStatus(formatAuthError(error));
                 setStatusType("error");
                 return;
             }
@@ -125,6 +125,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                         className={`btn ${mode === "signup" ? "btnPrimary" : "btnGhost"}`}
                         type="button"
                         onClick={() => setMode("signup")}
+                        disabled={loading}
                     >
                         Créer un compte
                     </button>
@@ -132,6 +133,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                         className={`btn ${mode === "signin" ? "btnPrimary" : "btnGhost"}`}
                         type="button"
                         onClick={() => setMode("signin")}
+                        disabled={loading}
                     >
                         Se connecter
                     </button>
@@ -165,7 +167,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                     </label>
 
                     <button className="btn btnPrimary" type="submit" disabled={!email || !password || loading}>
-                        {mode === "signup" ? "Créer mon compte" : "Se connecter"}
+                        {loading ? "Traitement…" : mode === "signup" ? "Créer mon compte" : "Se connecter"}
                     </button>
 
                     {status ? (

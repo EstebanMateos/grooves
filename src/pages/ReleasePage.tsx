@@ -12,6 +12,7 @@ import {
     removeWishlistRecord
 } from "../utils/libraryApi";
 import { getDiscogsProxyBaseUrl } from "../utils/discogsProxy";
+import { formatUiError } from "../utils/uiError";
 import BackButton from "../components/BackButton";
 
 type DiscogsRelease = {
@@ -107,7 +108,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                 if (controller.signal.aborted || isStale()) {
                     return;
                 }
-                setError(String(e));
+                setError(formatUiError(e));
             } finally {
                 if (!isStale()) {
                     setLoading(false);
@@ -236,7 +237,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             if (isDebugEnabled()) {
                 console.error("[ReleasePage] addToList failed", e);
             }
-            setActionStatus(String(e));
+            setActionStatus(formatUiError(e));
         } finally {
             setActionLoading(false);
         }
@@ -281,7 +282,7 @@ export default function ReleasePage({ onRequireAuth }: Props) {
             if (isDebugEnabled()) {
                 console.error("[ReleasePage] removeFromList failed", e);
             }
-            setActionStatus(String(e));
+            setActionStatus(formatUiError(e));
         } finally {
             setActionLoading(false);
         }
@@ -370,29 +371,29 @@ export default function ReleasePage({ onRequireAuth }: Props) {
                     <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {!inCollection && !inWishlist ? (
                             <>
-                                <button onClick={() => addToList("wishlist")} disabled={actionDisabled}>
-                                    Ajouter à la wishlist
+                                <button className="btn btnGhost" onClick={() => addToList("wishlist")} disabled={actionDisabled}>
+                                    {actionLoading ? "Ajout…" : "Ajouter à la wishlist"}
                                 </button>
-                                <button onClick={() => addToList("collection")} disabled={actionDisabled}>
-                                    Ajouter à la collection
+                                <button className="btn btnPrimary" onClick={() => addToList("collection")} disabled={actionDisabled}>
+                                    {actionLoading ? "Ajout…" : "Ajouter à la collection"}
                                 </button>
                             </>
                         ) : null}
 
                         {inWishlist ? (
                             <>
-                                <button onClick={moveWishlistToCollection} disabled={actionDisabled}>
-                                    Déplacer vers la collection
+                                <button className="btn btnPrimary" onClick={moveWishlistToCollection} disabled={actionDisabled}>
+                                    {actionLoading ? "Déplacement…" : "Déplacer vers la collection"}
                                 </button>
-                                <button onClick={() => removeFromList("wishlist")} disabled={actionDisabled}>
-                                    Retirer de la wishlist
+                                <button className="btn btnGhost" onClick={() => removeFromList("wishlist")} disabled={actionDisabled}>
+                                    {actionLoading ? "Retrait…" : "Retirer de la wishlist"}
                                 </button>
                             </>
                         ) : null}
 
                         {inCollection ? (
-                            <button onClick={() => removeFromList("collection")} disabled={actionDisabled}>
-                                Retirer de la collection
+                            <button className="btn btnGhost" onClick={() => removeFromList("collection")} disabled={actionDisabled}>
+                                {actionLoading ? "Retrait…" : "Retirer de la collection"}
                             </button>
                         ) : null}
                     </div>

@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import { formatUiError } from "./uiError";
 
 export type EnsuredProfileUsername = {
     username: string;
@@ -6,15 +7,7 @@ export type EnsuredProfileUsername = {
 };
 
 export function formatAuthError(error: unknown): string {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message) {
-        return "Erreur inconnue.";
-    }
-    const normalized = message.toLowerCase();
-    if (normalized.includes("timeout") || normalized.includes("expirée")) {
-        return "Délai dépassé. Vérifie ta connexion et réessaie.";
-    }
-    return message;
+    return formatUiError(error);
 }
 
 function buildAnonUsername(suffix?: string): string {

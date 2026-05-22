@@ -11,6 +11,7 @@ import {
     normalizeDiscogsSearchQuery
 } from "../utils/discogsSearch";
 import { getDiscogsProxyBaseUrl } from "../utils/discogsProxy";
+import { formatUiError } from "../utils/uiError";
 
 type DiscogsReleaseSearchItem = {
     id: number;
@@ -137,7 +138,7 @@ export default function HomePage() {
         } catch (e) {
             debugError("[HomePage] loadLibraryPreview error", e);
             if (libraryLoadSeqRef.current === request_id) {
-                setLibraryError(String(e));
+                setLibraryError(formatUiError(e));
             }
         } finally {
             libraryActiveRef.current = Math.max(0, libraryActiveRef.current - 1);
@@ -240,7 +241,7 @@ export default function HomePage() {
         } catch (e) {
             debugError("[HomePage] search error", e);
             if (!controller.signal.aborted && !is_stale()) {
-                setSearchError(String(e));
+                setSearchError(formatUiError(e));
             }
         } finally {
             if (!is_stale()) {
@@ -331,8 +332,12 @@ export default function HomePage() {
                 <div className="heroRight">
                     <div className="panel">
                         <div className="panelTitle">Recherche</div>
+                        <label className="srOnly" htmlFor="home-search-input">
+                            Recherche Discogs
+                        </label>
                         <div className="searchRow">
                             <input
+                                id="home-search-input"
                                 className="input"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
@@ -344,7 +349,7 @@ export default function HomePage() {
                                 placeholder="Daft Punk, Discovery, 10th anniversary"
                             />
                             <button className="btn btnPrimary" onClick={() => void search()} disabled={!canSearch || searchLoading}>
-                                Rechercher
+                                {searchLoading ? "Recherche…" : "Rechercher"}
                             </button>
                         </div>
 
