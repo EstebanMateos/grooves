@@ -59,7 +59,7 @@ export async function fetchWithRateLimit(
   init: RequestInit = {},
   options: RateLimitOptions = {}
 ): Promise<Response> {
-  const maxRetries = options.maxRetries ?? 2;
+  const maxRetries = options.maxRetries ?? 0;
   const baseDelayMs = options.baseDelayMs ?? 2000;
   const maxDelayMs = options.maxDelayMs ?? 16000;
   const jitterMs = options.jitterMs ?? 500;

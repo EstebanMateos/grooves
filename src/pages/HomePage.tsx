@@ -49,6 +49,8 @@ type DiscogsSearchResponse = {
     results?: DiscogsReleaseSearchItem[];
 };
 
+const MIN_DISCOGS_SEARCH_LENGTH = 3;
+
 export default function HomePage() {
     const navigate = useNavigate();
     const auth = useAuthSession();
@@ -278,6 +280,7 @@ export default function HomePage() {
     }, []);
 
     async function fetchSearchPage(nextPage: number, append: boolean) {
+        const trimmedQuery = query.trim();
         const request_id = searchLoadSeqRef.current + 1;
         searchLoadSeqRef.current = request_id;
         searchControllerRef.current?.abort();
@@ -287,7 +290,7 @@ export default function HomePage() {
 
         debugGroup("[HomePage] search");
         debugLog("request_id", request_id);
-        debugLog("query", query);
+        debugLog("query", trimmedQuery);
         debugLog("page", nextPage);
 
         setSearchError("");
@@ -295,7 +298,7 @@ export default function HomePage() {
 
         try {
             const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
-            const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&type=release&page=${nextPage}&per_page=50`;
+            const url = `${baseUrl}/search?q=${encodeURIComponent(trimmedQuery)}&type=release&page=${nextPage}&per_page=50`;
 
             const resp = await fetchWithRateLimit(url, { signal: controller.signal });
             debugLog("search status", resp.status);
@@ -341,6 +344,19 @@ export default function HomePage() {
     }
 
     async function search() {
+        const trimmedQuery = query.trim();
+        if (trimmedQuery.length < MIN_DISCOGS_SEARCH_LENGTH) {
+            searchControllerRef.current?.abort();
+            setResults([]);
+            setPage(1);
+            setPagesTotal(1);
+            setItemsTotal(0);
+            setSearchError(`Entre au moins ${MIN_DISCOGS_SEARCH_LENGTH} caractères.`);
+            return;
+        }
+        if (query !== trimmedQuery) {
+            setQuery(trimmedQuery);
+        }
         searchControllerRef.current?.abort();
         setResults([]);
         setPage(1);
@@ -349,7 +365,8 @@ export default function HomePage() {
         await fetchSearchPage(1, false);
     }
 
-    const canOpenSearch = !searchLoading && query.length > 0 && results.length > 0;
+    const canSearch = query.trim().length >= MIN_DISCOGS_SEARCH_LENGTH;
+    const canOpenSearch = !searchLoading && canSearch && results.length > 0;
 
     const heroSubtitle = useMemo(() => {
         if (auth.is_loading || is_authenticated) {
@@ -413,13 +430,13 @@ export default function HomePage() {
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 onKeyDown={(e) => {
-                                    if (e.key === "Enter" && query.trim() && !searchLoading) {
+                                    if (e.key === "Enter" && canSearch && !searchLoading) {
                                         void search();
                                     }
                                 }}
                                 placeholder="Daft Punk, Discovery, 10th anniversary"
                             />
-                            <button className="btn btnPrimary" onClick={() => void search()} disabled={!query || searchLoading}>
+                            <button className="btn btnPrimary" onClick={() => void search()} disabled={!canSearch || searchLoading}>
                                 Rechercher
                             </button>
                         </div>
@@ -460,7 +477,7 @@ export default function HomePage() {
                                 <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
                                     <button
                                         className="btn btnGhost"
-                                        onClick={() => navigate(`/search?q=${encodeURIComponent(query)}`)}
+                                        onClick={() => navigate(`/search?q=${encodeURIComponent(query.trim())}`)}
                                         disabled={!canOpenSearch}
                                     >
                                         Charger plus

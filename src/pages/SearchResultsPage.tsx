@@ -22,6 +22,8 @@ type DiscogsSearchResponse = {
     results?: DiscogsReleaseSearchItem[];
 };
 
+const MIN_DISCOGS_SEARCH_LENGTH = 3;
+
 function parsePage(value: string | null): number {
     const n = Number(value ?? "1");
     if (!Number.isFinite(n) || n < 1) {
@@ -47,6 +49,7 @@ export default function SearchResultsPage() {
     const fetchControllerRef = useRef<AbortController | null>(null);
 
     async function fetchPage(q: string, nextPage: number) {
+        const trimmedQuery = q.trim();
         const requestId = fetchSeqRef.current + 1;
         fetchSeqRef.current = requestId;
         fetchControllerRef.current?.abort();
@@ -58,7 +61,7 @@ export default function SearchResultsPage() {
 
         try {
             const baseUrl = import.meta.env.VITE_DISCOGS_PROXY_BASE_URL as string;
-            const url = `${baseUrl}/search?q=${encodeURIComponent(q)}&type=release&page=${nextPage}&per_page=50`;
+            const url = `${baseUrl}/search?q=${encodeURIComponent(trimmedQuery)}&type=release&page=${nextPage}&per_page=50`;
 
             const resp = await fetchWithRateLimit(url, { signal: controller.signal });
             if (!resp.ok) {
@@ -101,13 +104,13 @@ export default function SearchResultsPage() {
         setPage(pageParam);
         setPageInput(String(pageParam));
 
-        if (!queryParam) {
+        if (!queryParam || queryParam.trim().length < MIN_DISCOGS_SEARCH_LENGTH) {
             fetchSeqRef.current += 1;
             fetchControllerRef.current?.abort();
             setResults([]);
             setItemsTotal(0);
             setPagesTotal(1);
-            setError("");
+            setError(queryParam ? `Entre au moins ${MIN_DISCOGS_SEARCH_LENGTH} caractères.` : "");
             setLoading(false);
             return;
         }
@@ -122,6 +125,11 @@ export default function SearchResultsPage() {
         const next = nextQuery.trim();
         if (!next) {
             setSearchParams({});
+            return;
+        }
+        if (next.length < MIN_DISCOGS_SEARCH_LENGTH) {
+            setQuery(next);
+            setError(`Entre au moins ${MIN_DISCOGS_SEARCH_LENGTH} caractères.`);
             return;
         }
         setSearchParams({ q: next, page: String(nextPage) });
@@ -139,6 +147,7 @@ export default function SearchResultsPage() {
     const canGoPrev = !loading && page > 1;
     const canGoNext = !loading && page < pagesTotal;
     const canJump = !loading && pageInput.trim().length > 0;
+    const canSearch = query.trim().length >= MIN_DISCOGS_SEARCH_LENGTH;
     const pageStats = useMemo(() => {
         if (!queryParam) {
             return "Entre une recherche pour commencer.";
@@ -156,13 +165,13 @@ export default function SearchResultsPage() {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={(e) => {
-                            if (e.key === "Enter" && query.trim() && !loading) {
+                            if (e.key === "Enter" && canSearch && !loading) {
                                 submitSearch();
                             }
                         }}
                         placeholder="Daft Punk, Discovery, 10th anniversary"
                     />
-                    <button className="btn btnPrimary" onClick={submitSearch} disabled={!query || loading}>
+                    <button className="btn btnPrimary" onClick={submitSearch} disabled={!canSearch || loading}>
                         Rechercher
                     </button>
                 </div>
