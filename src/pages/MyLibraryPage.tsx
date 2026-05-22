@@ -16,6 +16,7 @@ type LibraryItemRow = LibraryItem;
 
 type FilterType = "collection" | "wishlist" | "all";
 type SortKey = "recent" | "title" | "artist" | "year";
+type ViewMode = "grid" | "list";
 
 type CachedLibrary = {
     updated_at: string;
@@ -34,6 +35,7 @@ export default function MyLibraryPage() {
     const [filter, setFilter] = useState<FilterType>("all");
     const [searchText, setSearchText] = useState<string>("");
     const [sortKey, setSortKey] = useState<SortKey>("recent");
+    const [viewMode, setViewMode] = useState<ViewMode>("grid");
     const [collectionGroupId, setCollectionGroupId] = useState<string | null>(null);
     const activeUserIdRef = useRef<string | null>(null);
     const loadSeqRef = useRef<number>(0);
@@ -268,6 +270,30 @@ export default function MyLibraryPage() {
             return null;
         }
 
+        if (viewMode === "grid") {
+            return (
+                <div key={ur.id} className="libraryGridItem">
+                    <Link to={`/release/${r.discogs_release_id}`} className="cardLink libraryCoverLink">
+                        <div className="libraryCoverCard">
+                            <div className="libraryCoverThumb">
+                                {r.thumb_url ? <img className="thumbImg" src={r.thumb_url} alt={r.title} /> : null}
+                            </div>
+                            <span className={`pill libraryCoverPill ${ur.list_type === "collection" ? "pillCollection" : "pillWishlist"}`}>
+                                {ur.list_type === "collection" ? "Collection" : "Wishlist"}
+                            </span>
+                        </div>
+                    </Link>
+                    <button
+                        onClick={() => removeItem(ur)}
+                        disabled={busyId === ur.id}
+                        className="btn btnGhost libraryGridRemove"
+                    >
+                        {busyId === ur.id ? "Retrait…" : "Retirer"}
+                    </button>
+                </div>
+            );
+        }
+
         return (
             <div
                 key={ur.id}
@@ -379,6 +405,25 @@ export default function MyLibraryPage() {
                         className="input"
                         style={{ minWidth: 240 }}
                     />
+
+                    <div className="viewToggle" aria-label="Mode d'affichage">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("grid")}
+                            disabled={viewMode === "grid"}
+                            className="btn btnGhost"
+                        >
+                            Carrés
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("list")}
+                            disabled={viewMode === "list"}
+                            className="btn btnGhost"
+                        >
+                            Liste
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -392,7 +437,7 @@ export default function MyLibraryPage() {
                         <div style={{ display: "grid", gap: 16 }}>
                             <div>
                                 <div style={{ fontWeight: 700, marginBottom: 8 }}>Collection</div>
-                                <div style={{ display: "grid", gap: 12 }}>
+                                <div className={viewMode === "grid" ? "libraryGrid" : "libraryList"}>
                                     {collectionItems.length > 0 ? (
                                         collectionItems.map(renderItem)
                                     ) : (
@@ -403,7 +448,7 @@ export default function MyLibraryPage() {
 
                             <div>
                                 <div style={{ fontWeight: 700, marginBottom: 8 }}>Wishlist</div>
-                                <div style={{ display: "grid", gap: 12 }}>
+                                <div className={viewMode === "grid" ? "libraryGrid" : "libraryList"}>
                                     {wishlistItems.length > 0 ? (
                                         wishlistItems.map(renderItem)
                                     ) : (
@@ -413,7 +458,7 @@ export default function MyLibraryPage() {
                             </div>
                         </div>
                     ) : (
-                        <div style={{ display: "grid", gap: 12 }}>
+                        <div className={viewMode === "grid" ? "libraryGrid" : "libraryList"}>
                             {sortedItems.map(renderItem)}
                         </div>
                     )}

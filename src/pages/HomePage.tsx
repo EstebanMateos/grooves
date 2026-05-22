@@ -33,6 +33,8 @@ type DiscogsSearchResponse = {
     results?: DiscogsReleaseSearchItem[];
 };
 
+const HOME_LIBRARY_PREVIEW_LIMIT = 11;
+
 export default function HomePage() {
     const navigate = useNavigate();
     const auth = useAuthSession();
@@ -133,8 +135,8 @@ export default function HomePage() {
                 return;
             }
 
-            setCollectionItems(preview.collection.slice(0, 8));
-            setWishlistItems(preview.wishlist.slice(0, 8));
+            setCollectionItems(preview.collection.slice(0, HOME_LIBRARY_PREVIEW_LIMIT));
+            setWishlistItems(preview.wishlist.slice(0, HOME_LIBRARY_PREVIEW_LIMIT));
         } catch (e) {
             debugError("[HomePage] loadLibraryPreview error", e);
             if (libraryLoadSeqRef.current === request_id) {
@@ -405,11 +407,6 @@ export default function HomePage() {
                 <section className="section">
                     <div className="sectionHeader">
                         <h2 className="sectionTitle">Ta bibliothèque</h2>
-                        <div className="sectionRight">
-                            <Link className="btn btnGhost" to="/my-library">
-                                Voir tout
-                            </Link>
-                        </div>
                     </div>
 
                     <>
@@ -446,6 +443,11 @@ export default function HomePage() {
                                                 </div>
                                             </Link>
                                         ))}
+                                        <Link to="/my-library" className="cardLink">
+                                            <div className="card homeLibraryCard homeLibraryMoreCard">
+                                                <span>Voir plus</span>
+                                            </div>
+                                        </Link>
                                     </div>
                                 )}
                             </div>
@@ -479,6 +481,11 @@ export default function HomePage() {
                                                 </div>
                                             </Link>
                                         ))}
+                                        <Link to="/my-library" className="cardLink">
+                                            <div className="card homeLibraryCard homeLibraryMoreCard">
+                                                <span>Voir plus</span>
+                                            </div>
+                                        </Link>
                                     </div>
                                 )}
                             </div>

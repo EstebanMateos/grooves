@@ -354,31 +354,121 @@ a {
     overflow: hidden;
 }
 
+.homeLibraryGrid {
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 8px;
+}
+
+.homeLibraryCard {
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    display: block;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.homeLibraryThumb {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    border: 0;
+    border-radius: 0;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.homeLibraryCardBody {
+    display: none;
+}
+
+.homeLibraryMoreCard {
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: var(--text);
+    font-weight: 750;
+    background: linear-gradient(135deg, rgba(255, 176, 0, 0.18), rgba(255, 106, 0, 0.10));
+    border-color: rgba(255, 176, 0, 0.28);
+}
+
+.libraryList {
+    display: grid;
+    gap: 12px;
+}
+
+.libraryGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 12px;
+}
+
+.libraryGridItem {
+    min-width: 0;
+}
+
+.libraryCoverLink {
+    display: block;
+}
+
+.libraryCoverCard {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: 14px;
+    border: 1px solid var(--stroke);
+    background: rgba(0, 0, 0, 0.18);
+    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.libraryCoverCard:hover {
+    transform: translateY(-2px);
+    border-color: var(--stroke2);
+    background: rgba(0, 0, 0, 0.26);
+}
+
+.libraryCoverThumb {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.libraryCoverPill {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+}
+
+.libraryGridRemove {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.viewToggle {
+    display: flex;
+    gap: 8px;
+}
+
 @media (max-width: 520px) {
     .homeLibraryGrid {
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
     }
 
-    .homeLibraryCard {
-        aspect-ratio: 1 / 1;
-        padding: 0;
-        display: block;
-        overflow: hidden;
-        border-radius: 12px;
+    .libraryGrid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
     }
 
-    .homeLibraryThumb {
-        width: 100%;
-        height: 100%;
-        aspect-ratio: 1 / 1;
-        border: 0;
-        border-radius: 0;
-        background: rgba(255, 255, 255, 0.07);
-    }
-
-    .homeLibraryCardBody {
+    .libraryCoverPill {
         display: none;
+    }
+
+    .viewToggle {
+        width: 100%;
+    }
+
+    .viewToggle .btn {
+        flex: 1;
     }
 }
 
