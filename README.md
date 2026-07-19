@@ -3,7 +3,7 @@
 Grooves est une application web pour rechercher, collecter et partager des vinyles.
 Elle s’appuie sur l’API Discogs pour les données musicales et sur Supabase pour l’authentification et le stockage.
 
-👉 Démo: https://estebanmateos.github.io/grooves/
+👉 Application: https://grooves.letruel.com/
 
 ## Fonctionnalités
 
@@ -14,12 +14,12 @@ Elle s’appuie sur l’API Discogs pour les données musicales et sur Supabase 
 - Profils publics partageables
 - Recherche de profils publics
 - Authentification via Supabase
-- Frontend statique déployé sur GitHub Pages
+- Frontend Docker auto-hébergé derrière Cloudflare Tunnel
 
 ## Stack technique
 
 - Frontend: React + TypeScript + Vite
 - Routing: React Router
-- Backend: Supabase (Auth + Postgres)
-- API musique: Discogs (via Cloudflare Worker proxy)
-- Déploiement: GitHub Pages (GitHub Actions)
+- Backend: Supabase auto-hébergé (Auth + Postgres)
+- API musique: Discogs via un proxy Docker local avec cache
+- Déploiement: Docker + Cloudflare Tunnel

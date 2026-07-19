@@ -9,7 +9,7 @@ export default defineConfig({
     fullyParallel: false,
     reporter: "list",
     use: {
-        baseURL: "https://estebanmateos.github.io/grooves/",
+        baseURL: "https://grooves.letruel.com/",
         serviceWorkers: "block",
         trace: "on-first-retry"
     },

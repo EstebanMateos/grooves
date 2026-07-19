@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const PROXY_SEARCH_PATTERN = "**://grooves-discogs-proxy.grooves.workers.dev/search?**";
+const PROXY_SEARCH_PATTERN = "**/api/discogs/search?**";
 
 type SearchCall = {
     q: string | null;
