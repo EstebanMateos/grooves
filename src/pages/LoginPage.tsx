@@ -10,7 +10,7 @@ import { ensureProfileUsername, formatAuthError } from "../utils/authProfile";
 export default function LoginPage() {
     const navigate = useNavigate();
     const auth = useAuthSession();
-    const [mode, setMode] = useState<"signin" | "signup">("signin");
+    const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [status, setStatus] = useState<string>("");
@@ -76,12 +76,36 @@ export default function LoginPage() {
         }
     }
 
+    async function requestPasswordReset() {
+        setStatus("");
+        setStatusType("");
+        setLoading(true);
+        try {
+            const redirectTo = `${window.location.origin}${window.location.pathname}`;
+            const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+            if (error) {
+                setStatus(formatAuthError(error));
+                setStatusType("error");
+                return;
+            }
+            setStatus("Si cette adresse correspond à un compte, un lien de réinitialisation vient d’être envoyé.");
+            setStatusType("success");
+        } catch (error) {
+            setStatus(formatAuthError(error));
+            setStatusType("error");
+        } finally {
+            setLoading(false);
+        }
+    }
+
     function handleSubmit(event: FormEvent) {
         event.preventDefault();
         if (loading) {
             return;
         }
-        if (mode === "signup") {
+        if (mode === "forgot") {
+            requestPasswordReset();
+        } else if (mode === "signup") {
             signUp();
         } else {
             signIn();
@@ -103,9 +127,11 @@ export default function LoginPage() {
             <div className="authCard">
                 <div className="authHeader">
                     <div className="badge">Grooves</div>
-                    <h1 className="authTitle">Bienvenue</h1>
+                    <h1 className="authTitle">{mode === "forgot" ? "Mot de passe oublié" : "Bienvenue"}</h1>
                     <p className="authSubtitle">
-                        Crée un compte ou connecte-toi pour gérer ta collection et ta wishlist.
+                        {mode === "forgot"
+                            ? "Saisis ton adresse e-mail pour recevoir un lien de réinitialisation."
+                            : "Crée un compte ou connecte-toi pour gérer ta collection et ta wishlist."}
                     </p>
                 </div>
 
@@ -123,7 +149,7 @@ export default function LoginPage() {
                         />
                     </label>
 
-                    <label className="authField">
+                    {mode !== "forgot" ? <label className="authField">
                         <span className="authLabel">Mot de passe</span>
                         <input
                             className="input"
@@ -134,11 +160,17 @@ export default function LoginPage() {
                             autoComplete={mode === "signup" ? "new-password" : "current-password"}
                             required
                         />
-                    </label>
+                    </label> : null}
 
-                    <button className="btn btnPrimary" type="submit" disabled={!email || !password || loading}>
-                        {loading ? "Traitement…" : mode === "signup" ? "Créer mon compte" : "Se connecter"}
+                    <button className="btn btnPrimary" type="submit" disabled={!email || (mode !== "forgot" && !password) || loading}>
+                        {loading ? "Traitement…" : mode === "forgot" ? "Envoyer le lien" : mode === "signup" ? "Créer mon compte" : "Se connecter"}
                     </button>
+
+                    {mode === "signin" ? (
+                        <button className="authTextButton" type="button" onClick={() => { setMode("forgot"); setStatus(""); }} disabled={loading}>
+                            Mot de passe oublié ?
+                        </button>
+                    ) : null}
 
                     {status ? (
                         <div className={statusType === "error" ? "error" : "success"}>{status}</div>
@@ -146,7 +178,11 @@ export default function LoginPage() {
                 </form>
 
                 <div style={{ marginTop: 12, textAlign: "center" }}>
-                    {mode === "signin" ? (
+                    {mode === "forgot" ? (
+                        <button className="btn btnGhost" type="button" onClick={() => { setMode("signin"); setStatus(""); }} disabled={loading}>
+                            Retour à la connexion
+                        </button>
+                    ) : mode === "signin" ? (
                         <>
                             <div className="muted" style={{ marginBottom: 8 }}>
                                 Pas encore de compte ?

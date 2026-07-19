@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Route, Routes } from "react-router-dom";
 import AuthModal from "./components/AuthModal";
-import { supabase } from "./supabaseClient";
+import { openedFromPasswordRecoveryLink, supabase } from "./supabaseClient";
 import { useAuthSession } from "./hooks/useAuthSession";
 import { useUserProfileSummary } from "./hooks/useUserProfileSummary";
 import DiscoverProfilesPage from "./pages/DiscoverProfilesPage";
@@ -14,6 +14,7 @@ import PublicProfilePage from "./pages/PublicProfilePage";
 import ReleasePage from "./pages/ReleasePage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import AccountCreatedPage from "./pages/AccountCreatedPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 export default function App() {
     const auth = useAuthSession();
@@ -21,9 +22,11 @@ export default function App() {
     const [authOpen, setAuthOpen] = useState<boolean>(false);
     const [menuOpen, setMenuOpen] = useState<boolean>(false);
     const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+    const [passwordRecoveryOpen, setPasswordRecoveryOpen] = useState(openedFromPasswordRecoveryLink);
     const menuRef = useRef<HTMLDivElement | null>(null);
     const installDismissedRef = useRef<boolean>(false);
     const installDismissedKey = "grooves:pwa_install_dismissed";
+    const isPasswordRecovery = passwordRecoveryOpen || auth.last_event === "PASSWORD_RECOVERY";
 
     async function signOut() {
         clearLibraryCache(auth.user_id);
@@ -261,9 +264,10 @@ export default function App() {
                 </div>
             ) : null}
 
-            <Routes>
+            {isPasswordRecovery ? <ResetPasswordPage onFinished={() => setPasswordRecoveryOpen(false)} /> : <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/account-created" element={<AccountCreatedPage />} />
                 <Route path="/people" element={<DiscoverProfilesPage />} />
                 <Route path="/my-library" element={<MyLibraryPage />} />
@@ -274,7 +278,7 @@ export default function App() {
                     path="/release/:discogsReleaseId"
                     element={<ReleasePage onRequireAuth={() => setAuthOpen(true)} />}
                 />
-            </Routes>
+            </Routes>}
 
             <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthed={() => {}} />
         </div>

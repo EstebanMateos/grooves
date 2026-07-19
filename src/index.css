@@ -563,6 +563,22 @@ a {
     color: var(--muted2);
 }
 
+.authTextButton {
+    appearance: none;
+    border: 0;
+    padding: 2px;
+    background: transparent;
+    color: var(--muted2);
+    cursor: pointer;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.authTextButton:hover {
+    color: var(--text);
+}
+
 .authModalOverlay {
     position: fixed;
     inset: 0;

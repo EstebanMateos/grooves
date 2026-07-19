@@ -13,7 +13,7 @@ type Props = {
 
 export default function AuthModal({ open, onClose, onAuthed }: Props) {
     const navigate = useNavigate();
-    const [mode, setMode] = useState<"signin" | "signup">("signup");
+    const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signup");
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
     const [status, setStatus] = useState<string>("");
@@ -82,12 +82,41 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
         }
     }
 
+    async function requestPasswordReset() {
+        if (!email) {
+            setStatus("Saisis d’abord ton adresse e-mail.");
+            setStatusType("error");
+            return;
+        }
+        setStatus("");
+        setStatusType("");
+        setLoading(true);
+        try {
+            const redirectTo = `${window.location.origin}${window.location.pathname}`;
+            const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+            if (error) {
+                setStatus(formatAuthError(error));
+                setStatusType("error");
+                return;
+            }
+            setStatus("Si cette adresse correspond à un compte, un lien de réinitialisation vient d’être envoyé.");
+            setStatusType("success");
+        } catch (error) {
+            setStatus(formatAuthError(error));
+            setStatusType("error");
+        } finally {
+            setLoading(false);
+        }
+    }
+
     function handleSubmit(event: FormEvent) {
         event.preventDefault();
         if (loading) {
             return;
         }
-        if (mode === "signup") {
+        if (mode === "forgot") {
+            requestPasswordReset();
+        } else if (mode === "signup") {
             signUp();
         } else {
             signIn();
@@ -114,9 +143,13 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                             Fermer
                         </button>
                     </div>
-                    <h2 className="authTitle">{mode === "signup" ? "Créer un compte" : "Se connecter"}</h2>
+                    <h2 className="authTitle">
+                        {mode === "signup" ? "Créer un compte" : mode === "forgot" ? "Mot de passe oublié" : "Se connecter"}
+                    </h2>
                     <p className="authSubtitle">
-                        Accède à ta collection, ta wishlist et ton profil public.
+                        {mode === "forgot"
+                            ? "Saisis ton adresse e-mail pour recevoir un lien de réinitialisation."
+                            : "Accède à ta collection, ta wishlist et ton profil public."}
                     </p>
                 </div>
 
@@ -153,7 +186,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                         />
                     </label>
 
-                    <label className="authField">
+                    {mode !== "forgot" ? <label className="authField">
                         <span className="authLabel">Mot de passe</span>
                         <input
                             className="input"
@@ -164,11 +197,21 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                             autoComplete={mode === "signup" ? "new-password" : "current-password"}
                             required
                         />
-                    </label>
+                    </label> : null}
 
-                    <button className="btn btnPrimary" type="submit" disabled={!email || !password || loading}>
-                        {loading ? "Traitement…" : mode === "signup" ? "Créer mon compte" : "Se connecter"}
+                    <button className="btn btnPrimary" type="submit" disabled={!email || (mode !== "forgot" && !password) || loading}>
+                        {loading ? "Traitement…" : mode === "forgot" ? "Envoyer le lien" : mode === "signup" ? "Créer mon compte" : "Se connecter"}
                     </button>
+
+                    {mode !== "forgot" ? (
+                        <button className="authTextButton" type="button" onClick={() => { setMode("forgot"); setStatus(""); setStatusType(""); }} disabled={loading}>
+                            Mot de passe oublié ?
+                        </button>
+                    ) : (
+                        <button className="authTextButton" type="button" onClick={() => { setMode("signin"); setStatus(""); setStatusType(""); }} disabled={loading}>
+                            Retour à la connexion
+                        </button>
+                    )}
 
                     {status ? (
                         <div className={statusType === "error" ? "error" : "success"}>{status}</div>
